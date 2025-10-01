@@ -2,25 +2,24 @@ package asia.lira.mcfunctionplus.impl;
 
 import asia.lira.mcfunctionplus.object.LongShardedSLRUCache;
 import com.mojang.brigadier.CommandDispatcher;
-import net.minecraft.command.CommandExecutionContext;
-import net.minecraft.command.Frame;
 import net.minecraft.command.SourcedCommandAction;
 import net.minecraft.nbt.*;
 import net.minecraft.server.command.AbstractServerCommandSource;
 import net.minecraft.server.function.*;
-import static net.minecraft.server.function.Macro.Line;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Util;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+
+import static net.minecraft.server.function.Macro.Line;
 
 @SuppressWarnings({"unchecked"})
 public final class FastMacro<T extends AbstractServerCommandSource<T>> implements CommandFunction<T> {
@@ -31,12 +30,10 @@ public final class FastMacro<T extends AbstractServerCommandSource<T>> implement
 
     private static final int CACHE_SIZE = 8;
     private static final LongShardedSLRUCache<ExpandedMacro<?>> CACHE = new LongShardedSLRUCache<>(CACHE_SIZE, 25);
-    private final long thisHashCode = (((long) System.identityHashCode(this)) << 32);
-
     public final List<String> varNames;
     public final Identifier id;
     public final List<Line<T>> lines;
-
+    private final long thisHashCode = (((long) System.identityHashCode(this)) << 32);
     // buffer
     private final NbtElement[] argBuffer;
 
@@ -45,6 +42,17 @@ public final class FastMacro<T extends AbstractServerCommandSource<T>> implement
         this.lines = lines;
         this.varNames = varNames;
         this.argBuffer = new NbtElement[varNames.size()];
+    }
+
+    public static String toString(@NotNull NbtElement nbt) {
+        return switch (nbt) {
+            case NbtFloat nbtFloat -> DECIMAL_FORMAT.format(nbtFloat.floatValue());
+            case NbtDouble nbtDouble -> DECIMAL_FORMAT.format(nbtDouble.doubleValue());
+            case NbtByte nbtByte -> String.valueOf(nbtByte.byteValue());
+            case NbtShort nbtShort -> String.valueOf(nbtShort.shortValue());
+            case NbtLong nbtLong -> String.valueOf(nbtLong.longValue());
+            default -> nbt.asString();
+        };
     }
 
     public Identifier id() {
@@ -79,17 +87,6 @@ public final class FastMacro<T extends AbstractServerCommandSource<T>> implement
             hashCode = 31 * hashCode + value.hashCode();
         }
         return thisHashCode | (hashCode & 0xffffffffL);
-    }
-
-    public static String toString(@NotNull NbtElement nbt) {
-        return switch (nbt) {
-            case NbtFloat nbtFloat -> DECIMAL_FORMAT.format(nbtFloat.floatValue());
-            case NbtDouble nbtDouble -> DECIMAL_FORMAT.format(nbtDouble.doubleValue());
-            case NbtByte nbtByte -> String.valueOf(nbtByte.byteValue());
-            case NbtShort nbtShort -> String.valueOf(nbtShort.shortValue());
-            case NbtLong nbtLong -> String.valueOf(nbtLong.longValue());
-            default -> nbt.asString();
-        };
     }
 
     @Contract("_, _ -> new")
