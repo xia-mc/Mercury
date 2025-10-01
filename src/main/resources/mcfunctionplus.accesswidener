@@ -1,0 +1,12 @@
+accessWidener v2 named
+accessible class net/minecraft/server/function/Macro$Line
+accessible class net/minecraft/server/function/Macro$FixedLine
+accessible class net/minecraft/server/function/Macro$VariableLine
+accessible field net/minecraft/server/function/Macro$FixedLine action Lnet/minecraft/command/SourcedCommandAction;
+accessible field net/minecraft/server/function/Macro varNames Ljava/util/List;
+accessible field net/minecraft/server/function/Macro cache Lit/unimi/dsi/fastutil/objects/Object2ObjectLinkedOpenHashMap;
+accessible field net/minecraft/server/function/Macro id Lnet/minecraft/util/Identifier;
+accessible field net/minecraft/server/function/Macro lines Ljava/util/List;
+accessible method net/minecraft/server/function/Macro withMacroReplaced (Ljava/util/List;Ljava/util/List;Lcom/mojang/brigadier/CommandDispatcher;)Lnet/minecraft/server/function/Procedure;
+accessible method net/minecraft/server/function/Macro toString (Lnet/minecraft/nbt/NbtElement;)Ljava/lang/String;
+mutable field net/minecraft/server/function/Macro cache Lit/unimi/dsi/fastutil/objects/Object2ObjectLinkedOpenHashMap;

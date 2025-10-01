@@ -1,4 +1,4 @@
-package asia.lira.mcfunctionplus.commands;
+package asia.lira.mcfunctionplus.command;
 
 import asia.lira.mcfunctionplus.McFunctionPlus;
 import com.mojang.brigadier.CommandDispatcher;
@@ -8,10 +8,7 @@ import net.minecraft.command.DataCommandStorage;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtInt;
 import net.minecraft.nbt.NbtList;
-import net.minecraft.scoreboard.ReadableScoreboardScore;
-import net.minecraft.scoreboard.ScoreHolder;
-import net.minecraft.scoreboard.ScoreboardObjective;
-import net.minecraft.scoreboard.ServerScoreboard;
+import net.minecraft.scoreboard.*;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
@@ -24,7 +21,12 @@ import static net.minecraft.server.command.CommandManager.literal;
 public class CommandHandler implements CommandRegistrationCallback {
     public static final ScoreHolder RAX = ScoreHolder.fromName("rax");
     public static final ScoreHolder R0 = ScoreHolder.fromName("r0");
-    public static final Identifier HEAP = Identifier.of("std:vm", "heap");
+    public static final Identifier STORAGE = Identifier.of("std", "vm");
+
+    private static NbtList getHeap() {
+        DataCommandStorage storage = McFunctionPlus.SERVER.getDataCommandStorage();
+        return storage.get(STORAGE).getList("heap", NbtElement.INT_TYPE);
+    }
 
     @Override
     public void register(@NotNull CommandDispatcher<ServerCommandSource> dispatcher,
@@ -33,7 +35,7 @@ public class CommandHandler implements CommandRegistrationCallback {
                 .then(literal("syscall").executes(context -> {
                     ServerScoreboard scoreboard = McFunctionPlus.SERVER.getScoreboard();
                     ScoreboardObjective vmRegs = scoreboard.getNullableObjective("vm_regs");
-                    ReadableScoreboardScore rax = scoreboard.getScore(RAX, vmRegs);
+                    ScoreboardScore rax = (ScoreboardScore) scoreboard.getScore(RAX, vmRegs);
                     if (rax == null) {
                         return -1;
                     }
@@ -41,7 +43,8 @@ public class CommandHandler implements CommandRegistrationCallback {
 
                     switch (id) {
                         case 0 -> {  // int getAPIVersion()
-                            return McFunctionPlus.API_VERSION;
+                            rax.setScore(McFunctionPlus.API_VERSION);
+                            return 1;
                         }
                         case 1 -> {  // void nanoTimes(Int64 *result)
                             ReadableScoreboardScore r0 = scoreboard.getScore(R0, vmRegs);
@@ -59,7 +62,7 @@ public class CommandHandler implements CommandRegistrationCallback {
                             int high = (int) ((value >>> 32) & 0xFFFFFFFFL);
                             heap.setElement(addr, NbtInt.of(low));
                             heap.setElement(addr + 1, NbtInt.of(high));
-                            return 0;
+                            return 1;
                         }
                         case 2 -> {  // void print(const char *string)
                             ReadableScoreboardScore r0 = scoreboard.getScore(R0, vmRegs);
@@ -74,8 +77,10 @@ public class CommandHandler implements CommandRegistrationCallback {
                                 builder.append(c);
                                 addr++;
                             }
-                            McFunctionPlus.SERVER.sendMessage(Text.literal(builder.toString()));
-                            return 0;
+                            McFunctionPlus.SERVER.getPlayerManager().broadcast(Text.literal(
+                                    builder.toString()
+                            ), false);
+                            return 1;
                         }
                         default -> {
                             return -1;
@@ -83,10 +88,5 @@ public class CommandHandler implements CommandRegistrationCallback {
                     }
                 }))
         );
-    }
-
-    private static NbtList getHeap() {
-        DataCommandStorage storage = McFunctionPlus.SERVER.getDataCommandStorage();
-        return storage.get(HEAP).getList("value", NbtElement.INT_TYPE);
     }
 }

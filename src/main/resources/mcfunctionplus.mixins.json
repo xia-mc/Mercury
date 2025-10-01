@@ -4,6 +4,7 @@
   "package": "asia.lira.mcfunctionplus.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "MixinFunctionBuilder"
   ],
   "injectors": {
     "defaultRequire": 1
