@@ -34,6 +34,7 @@ public final class FastMacro<T extends AbstractServerCommandSource<T>> implement
     public final Identifier id;
     public final List<Line<T>> lines;
     private final long thisHashCode = (((long) System.identityHashCode(this)) << 32);
+
     // buffer
     private final NbtElement[] argBuffer;
 
