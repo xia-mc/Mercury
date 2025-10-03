@@ -1,4 +1,4 @@
-package asia.lira.mcfunctionplus.object;
+package asia.lira.mercury.object;
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
 import org.jetbrains.annotations.Nullable;

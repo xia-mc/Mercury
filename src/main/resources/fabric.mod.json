@@ -1,30 +1,30 @@
 {
   "schemaVersion": 1,
-  "id": "mcfunctionplus",
+  "id": "mercury",
   "version": "${version}",
-  "name": "McFunctionPlus",
+  "name": "Mercury",
   "description": "",
-  "authors": [],
+  "authors": ["xia__mc"],
   "contact": {},
   "license": "Apache-2.0",
-  "icon": "assets/mcfunctionplus/icon.png",
+  "icon": "assets/mercury/icon.png",
   "environment": "*",
   "entrypoints": {
     "fabric-datagen": [
-      "asia.lira.mcfunctionplus.client.McFunctionPlusDataGenerator"
+      "asia.lira.mercury.client.MercuryDataGenerator"
     ],
     "main": [
-      "asia.lira.mcfunctionplus.McFunctionPlus"
+      "asia.lira.mercury.Mercury"
     ]
   },
   "mixins": [
-    "mcfunctionplus.mixins.json",
+    "mercury.mixins.json",
     {
-      "config": "mcfunctionplus.client.mixins.json",
+      "config": "mercury.client.mixins.json",
       "environment": "client"
     }
   ],
-  "accessWidener": "mcfunctionplus.accesswidener",
+  "accessWidener": "mercury.accesswidener",
   "depends": {
     "fabricloader": ">=${loader_version}",
     "fabric": "*",

@@ -1,4 +1,4 @@
-package asia.lira.mcfunctionplus.stat;
+package asia.lira.mercury.stat;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

@@ -1,4 +1,4 @@
-package asia.lira.mcfunctionplus.stat;
+package asia.lira.mercury.stat;
 
 import java.util.concurrent.atomic.AtomicLong;
 

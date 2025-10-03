@@ -14,13 +14,13 @@ loom {
     splitEnvironmentSourceSets()
 
     mods {
-        "mcfunctionplus" {
+        "mercury" {
             sourceSet sourceSets.main
             sourceSet sourceSets.client
         }
     }
 
-    accessWidenerPath = file("src/main/resources/mcfunctionplus.accesswidener")
+    accessWidenerPath = file("src/main/resources/mercury.accesswidener")
 }
 
 fabricApi {
@@ -42,6 +42,8 @@ dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    implementation 'org.javassist:javassist:3.30.2-GA'
 
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 }

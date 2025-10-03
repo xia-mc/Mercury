@@ -1,0 +1,55 @@
+accessWidener v2 named
+accessible class net/minecraft/server/function/Macro$Line
+accessible class net/minecraft/server/function/Macro$FixedLine
+accessible class net/minecraft/server/function/Macro$VariableLine
+accessible field net/minecraft/server/function/Macro$FixedLine action Lnet/minecraft/command/SourcedCommandAction;
+accessible field net/minecraft/server/function/Macro varNames Ljava/util/List;
+accessible field net/minecraft/server/function/Macro cache Lit/unimi/dsi/fastutil/objects/Object2ObjectLinkedOpenHashMap;
+accessible field net/minecraft/server/function/Macro id Lnet/minecraft/util/Identifier;
+accessible field net/minecraft/server/function/Macro lines Ljava/util/List;
+accessible method net/minecraft/server/function/Macro withMacroReplaced (Ljava/util/List;Ljava/util/List;Lcom/mojang/brigadier/CommandDispatcher;)Lnet/minecraft/server/function/Procedure;
+accessible method net/minecraft/server/function/Macro toString (Lnet/minecraft/nbt/NbtElement;)Ljava/lang/String;
+mutable field net/minecraft/server/function/Macro cache Lit/unimi/dsi/fastutil/objects/Object2ObjectLinkedOpenHashMap;
+
+accessible method net/minecraft/server/command/ClearCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Ljava/util/Collection;Ljava/util/function/Predicate;)I
+accessible method net/minecraft/server/command/ClearCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Ljava/util/Collection;Ljava/util/function/Predicate;I)I
+accessible method net/minecraft/server/command/CloneCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/server/command/CloneCommand$DimensionalPos;Lnet/minecraft/server/command/CloneCommand$DimensionalPos;Lnet/minecraft/server/command/CloneCommand$DimensionalPos;Ljava/util/function/Predicate;Lnet/minecraft/server/command/CloneCommand$Mode;)I
+accessible method net/minecraft/server/command/CommandManager execute (Lcom/mojang/brigadier/ParseResults;Ljava/lang/String;)V
+accessible method net/minecraft/server/command/DamageCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/entity/Entity;FLnet/minecraft/entity/damage/DamageSource;)I
+accessible method net/minecraft/server/command/DebugCommand$Command$1 execute (Ljava/lang/Object;Lnet/minecraft/command/CommandExecutionContext;Lnet/minecraft/command/Frame;)V
+accessible method net/minecraft/server/command/DebugCommand$Command$1 execute (Lnet/minecraft/server/command/AbstractServerCommandSource;Lnet/minecraft/command/CommandExecutionContext;Lnet/minecraft/command/Frame;)V
+accessible method net/minecraft/server/command/DebugCommand$Command$1 execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/command/CommandExecutionContext;Lnet/minecraft/command/Frame;)V
+accessible method net/minecraft/server/command/DebugMobSpawningCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/entity/SpawnGroup;Lnet/minecraft/util/math/BlockPos;)I
+accessible method net/minecraft/server/command/DebugPathCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/util/math/BlockPos;)I
+accessible method net/minecraft/server/command/DefaultGameModeCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/world/GameMode;)I
+accessible method net/minecraft/server/command/DifficultyCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/world/Difficulty;)I
+accessible method net/minecraft/server/command/EnchantCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Ljava/util/Collection;Lnet/minecraft/registry/entry/RegistryEntry;I)I
+accessible method net/minecraft/server/command/ExecuteCommand$IfUnlessRedirector execute (Ljava/lang/Object;Ljava/util/List;Lcom/mojang/brigadier/context/ContextChain;Lnet/minecraft/command/ExecutionFlags;Lnet/minecraft/command/ExecutionControl;)V
+accessible method net/minecraft/server/command/ExecuteCommand$IfUnlessRedirector execute (Lnet/minecraft/server/command/ServerCommandSource;Ljava/util/List;Lcom/mojang/brigadier/context/ContextChain;Lnet/minecraft/command/ExecutionFlags;Lnet/minecraft/command/ExecutionControl;)V
+accessible method net/minecraft/server/command/FillBiomeCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/registry/entry/RegistryEntry$Reference;Ljava/util/function/Predicate;)I
+accessible method net/minecraft/server/command/FillCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/util/math/BlockBox;Lnet/minecraft/command/argument/BlockStateArgument;Lnet/minecraft/server/command/FillCommand$Mode;Ljava/util/function/Predicate;)I
+accessible method net/minecraft/server/command/GameModeCommand execute (Lcom/mojang/brigadier/context/CommandContext;Ljava/util/Collection;Lnet/minecraft/world/GameMode;)I
+accessible method net/minecraft/server/command/GiveCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/command/argument/ItemStackArgument;Ljava/util/Collection;I)I
+accessible method net/minecraft/server/command/KickCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Ljava/util/Collection;Lnet/minecraft/text/Text;)I
+accessible method net/minecraft/server/command/KillCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Ljava/util/Collection;)I
+accessible method net/minecraft/server/command/ListCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Ljava/util/function/Function;)I
+accessible method net/minecraft/server/command/MessageCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Ljava/util/Collection;Lnet/minecraft/network/message/SignedMessage;)V
+accessible method net/minecraft/server/command/ParticleCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/particle/ParticleEffect;Lnet/minecraft/util/math/Vec3d;Lnet/minecraft/util/math/Vec3d;FIZLjava/util/Collection;)I
+accessible method net/minecraft/server/command/PlaySoundCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Ljava/util/Collection;Lnet/minecraft/util/Identifier;Lnet/minecraft/sound/SoundCategory;Lnet/minecraft/util/math/Vec3d;FFF)I
+accessible method net/minecraft/server/command/PublishCommand execute (Lnet/minecraft/server/command/ServerCommandSource;IZLnet/minecraft/world/GameMode;)I
+accessible method net/minecraft/server/command/RandomCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/predicate/NumberRange$IntRange;Lnet/minecraft/util/Identifier;Z)I
+accessible method net/minecraft/server/command/ReturnCommand$FailCommand execute (Lnet/minecraft/server/command/AbstractServerCommandSource;Lcom/mojang/brigadier/context/ContextChain;Lnet/minecraft/command/ExecutionFlags;Lnet/minecraft/command/ExecutionControl;)V
+accessible method net/minecraft/server/command/ReturnCommand$ReturnRunRedirector execute (Lnet/minecraft/server/command/AbstractServerCommandSource;Ljava/util/List;Lcom/mojang/brigadier/context/ContextChain;Lnet/minecraft/command/ExecutionFlags;Lnet/minecraft/command/ExecutionControl;)V
+accessible method net/minecraft/server/command/ReturnCommand$ValueCommand execute (Lnet/minecraft/server/command/AbstractServerCommandSource;Lcom/mojang/brigadier/context/ContextChain;Lnet/minecraft/command/ExecutionFlags;Lnet/minecraft/command/ExecutionControl;)V
+accessible method net/minecraft/server/command/ScheduleCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lcom/mojang/datafixers/util/Pair;IZ)I
+accessible method net/minecraft/server/command/SetBlockCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/command/argument/BlockStateArgument;Lnet/minecraft/server/command/SetBlockCommand$Mode;Ljava/util/function/Predicate;)I
+accessible method net/minecraft/server/command/SetWorldSpawnCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/util/math/BlockPos;F)I
+accessible method net/minecraft/server/command/SpawnArmorTrimsCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/entity/player/PlayerEntity;)I
+accessible method net/minecraft/server/command/SpawnPointCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Ljava/util/Collection;Lnet/minecraft/util/math/BlockPos;F)I
+accessible method net/minecraft/server/command/SpectateCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/entity/Entity;Lnet/minecraft/server/network/ServerPlayerEntity;)I
+accessible method net/minecraft/server/command/SpreadPlayersCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/util/math/Vec2f;FFIZLjava/util/Collection;)I
+accessible method net/minecraft/server/command/StopSoundCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Ljava/util/Collection;Lnet/minecraft/sound/SoundCategory;Lnet/minecraft/util/Identifier;)I
+accessible method net/minecraft/server/command/SummonCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/registry/entry/RegistryEntry$Reference;Lnet/minecraft/util/math/Vec3d;Lnet/minecraft/nbt/NbtCompound;Z)I
+accessible method net/minecraft/server/command/TeamMsgCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Lnet/minecraft/entity/Entity;Lnet/minecraft/scoreboard/Team;Ljava/util/List;Lnet/minecraft/network/message/SignedMessage;)V
+accessible method net/minecraft/server/command/TeleportCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Ljava/util/Collection;Lnet/minecraft/entity/Entity;)I
+accessible method net/minecraft/server/command/TeleportCommand execute (Lnet/minecraft/server/command/ServerCommandSource;Ljava/util/Collection;Lnet/minecraft/server/world/ServerWorld;Lnet/minecraft/command/argument/PosArgument;Lnet/minecraft/command/argument/PosArgument;Lnet/minecraft/server/command/LookTarget;)I

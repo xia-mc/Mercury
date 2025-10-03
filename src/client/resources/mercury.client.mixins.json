@@ -1,7 +1,7 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "asia.lira.mcfunctionplus.mixin.client",
+  "package": "asia.lira.mercury.mixin.client",
   "compatibilityLevel": "JAVA_21",
   "client": [
   ],

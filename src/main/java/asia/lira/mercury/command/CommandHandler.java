@@ -1,7 +1,8 @@
-package asia.lira.mcfunctionplus.command;
+package asia.lira.mercury.command;
 
-import asia.lira.mcfunctionplus.McFunctionPlus;
+import asia.lira.mercury.Mercury;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.command.DataCommandStorage;
@@ -24,7 +25,7 @@ public class CommandHandler implements CommandRegistrationCallback {
     public static final Identifier STORAGE = Identifier.of("std", "vm");
 
     private static NbtList getHeap() {
-        DataCommandStorage storage = McFunctionPlus.SERVER.getDataCommandStorage();
+        DataCommandStorage storage = Mercury.SERVER.getDataCommandStorage();
         return storage.get(STORAGE).getList("heap", NbtElement.INT_TYPE);
     }
 
@@ -33,7 +34,7 @@ public class CommandHandler implements CommandRegistrationCallback {
                          CommandRegistryAccess access, CommandManager.RegistrationEnvironment environment) {
         dispatcher.register(literal("mcfp")
                 .then(literal("syscall").executes(context -> {
-                    ServerScoreboard scoreboard = McFunctionPlus.SERVER.getScoreboard();
+                    ServerScoreboard scoreboard = Mercury.SERVER.getScoreboard();
                     ScoreboardObjective vmRegs = scoreboard.getNullableObjective("vm_regs");
                     ScoreboardScore rax = (ScoreboardScore) scoreboard.getScore(RAX, vmRegs);
                     if (rax == null) {
@@ -43,7 +44,7 @@ public class CommandHandler implements CommandRegistrationCallback {
 
                     switch (id) {
                         case 0 -> {  // int getAPIVersion()
-                            rax.setScore(McFunctionPlus.API_VERSION);
+                            rax.setScore(Mercury.API_VERSION);
                             return 1;
                         }
                         case 1 -> {  // void nanoTimes(Int64 *result)
@@ -77,7 +78,7 @@ public class CommandHandler implements CommandRegistrationCallback {
                                 builder.append(c);
                                 addr++;
                             }
-                            McFunctionPlus.SERVER.getPlayerManager().broadcast(Text.literal(
+                            Mercury.SERVER.getPlayerManager().broadcast(Text.literal(
                                     builder.toString()
                             ), false);
                             return 1;
@@ -86,6 +87,17 @@ public class CommandHandler implements CommandRegistrationCallback {
                             return -1;
                         }
                     }
+                }))
+        );
+
+        dispatcher.register(literal("mercury")
+                .then(literal("test1").executes(context -> {
+                    System.out.println(Mercury.interpreter.execute(context.getSource(), "help", new String[]{"help"}));
+                    return 1;
+                }))
+                .then(literal("test2").executes(context -> {
+                    System.out.println(Mercury.interpreter.execute(context.getSource(), "say \"Hello, World!\"", new String[]{"say", "\"Hello, World!\""}));
+                    return 1;
                 }))
         );
     }

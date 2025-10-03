@@ -1,10 +1,8 @@
-package asia.lira.mcfunctionplus.impl;
+package asia.lira.mercury.impl;
 
-import asia.lira.mcfunctionplus.object.LongShardedSLRUCache;
-import asia.lira.mcfunctionplus.stat.FastMacroStats;
+import asia.lira.mercury.object.LongShardedSLRUCache;
+import asia.lira.mercury.stat.FastMacroStats;
 import com.mojang.brigadier.CommandDispatcher;
-import net.minecraft.command.CommandExecutionContext;
-import net.minecraft.command.Frame;
 import net.minecraft.command.SourcedCommandAction;
 import net.minecraft.nbt.*;
 import net.minecraft.server.command.AbstractServerCommandSource;
@@ -19,7 +17,6 @@ import org.jetbrains.annotations.Nullable;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -33,7 +30,7 @@ public final class FastMacro<T extends AbstractServerCommandSource<T>> implement
     });
 
     private static final int CACHE_SIZE = 512;
-    private static final LongShardedSLRUCache<ExpandedMacro<?>> CACHE = new LongShardedSLRUCache<>(CACHE_SIZE, 33);
+    private static final LongShardedSLRUCache<ExpandedMacro<?>> CACHE = new LongShardedSLRUCache<>(CACHE_SIZE, 25);
     public final List<String> varNames;
     public final Identifier id;
     public final List<Line<T>> lines;
@@ -122,11 +119,7 @@ public final class FastMacro<T extends AbstractServerCommandSource<T>> implement
 
         return new ExpandedMacro<>(
                 id.withPath((path) -> path + "/" + uniqueId),
-                Collections.singletonList((source, context, frame) -> {
-                    for (SourcedCommandAction<T> action : list) {
-                        action.execute(source, context, frame);
-                    }
-                })
+                Arrays.asList(list)
         );
     }
 }
