@@ -50,7 +50,7 @@ public final class UnresolvedCallIsolationPass implements BaselinePass {
         List<LoweredUnit.LoweredBlock> rewritten = new ArrayList<>(oldBlocks.size() + 1);
         int continuationIndex = blockIndex + 1;
         for (int i = 0; i < blockIndex; i++) {
-            rewritten.add(remapShifted(oldBlocks.get(i), continuationIndex, 1));
+            rewritten.add(LoweredUnit.remapShifted(oldBlocks.get(i), continuationIndex, 1));
         }
 
         rewritten.add(new LoweredUnit.LoweredBlock(
@@ -58,56 +58,14 @@ public final class UnresolvedCallIsolationPass implements BaselinePass {
                 prefix,
                 new LoweredUnit.SuspendActionTerminator(callInstruction.bindingId(), continuationIndex, callInstruction.spillBeforeSlots())
         ));
-        rewritten.add(new LoweredUnit.LoweredBlock(block.programId(), suffix, remapShifted(block.terminator(), continuationIndex, 1)));
+        rewritten.add(new LoweredUnit.LoweredBlock(block.programId(), suffix, LoweredUnit.remapShifted(block.terminator(), continuationIndex, 1)));
 
         for (int i = blockIndex + 1; i < oldBlocks.size(); i++) {
-            rewritten.add(remapShifted(oldBlocks.get(i), continuationIndex, 1));
+            rewritten.add(LoweredUnit.remapShifted(oldBlocks.get(i), continuationIndex, 1));
         }
 
         int entryIndex = unit.entryIndex() > blockIndex ? unit.entryIndex() + 1 : unit.entryIndex();
         return new LoweredUnit(unit.entryId(), rewritten, entryIndex, unit.requiredSlots(), unit.promotedSlotLocals());
     }
 
-    private static LoweredUnit.LoweredBlock remapShifted(LoweredUnit.LoweredBlock block, int fromIndex, int delta) {
-        return new LoweredUnit.LoweredBlock(block.programId(), block.instructions(), remapShifted(block.terminator(), fromIndex, delta));
-    }
-
-    private static LoweredUnit.LoweredTerminator remapShifted(LoweredUnit.LoweredTerminator terminator, int fromIndex, int delta) {
-        if (terminator instanceof LoweredUnit.JumpLocalTerminator jumpLocalTerminator) {
-            int target = jumpLocalTerminator.targetBlockIndex();
-            return new LoweredUnit.JumpLocalTerminator(target >= fromIndex ? target + delta : target);
-        }
-        if (terminator instanceof LoweredUnit.SuspendActionTerminator suspendActionTerminator) {
-            int next = suspendActionTerminator.continuationBlockIndex();
-            if (next >= fromIndex) {
-                next += delta;
-            }
-            return new LoweredUnit.SuspendActionTerminator(suspendActionTerminator.bindingId(), next, suspendActionTerminator.spillBeforeSlots());
-        }
-        if (terminator instanceof LoweredUnit.SuspendPrefetchedMacroTerminator suspendPrefetchedMacroTerminator) {
-            int next = suspendPrefetchedMacroTerminator.continuationBlockIndex();
-            if (next >= fromIndex) {
-                next += delta;
-            }
-            return new LoweredUnit.SuspendPrefetchedMacroTerminator(
-                    suspendPrefetchedMacroTerminator.planId(),
-                    suspendPrefetchedMacroTerminator.bindingId(),
-                    next,
-                    suspendPrefetchedMacroTerminator.spillBeforeSlots()
-            );
-        }
-        if (terminator instanceof LoweredUnit.Tier2MacroDispatchTerminator tier2MacroDispatchTerminator) {
-            int next = tier2MacroDispatchTerminator.continuationBlockIndex();
-            if (next >= fromIndex) {
-                next += delta;
-            }
-            return new LoweredUnit.Tier2MacroDispatchTerminator(
-                    tier2MacroDispatchTerminator.planId(),
-                    next,
-                    tier2MacroDispatchTerminator.spillBeforeSlots(),
-                    tier2MacroDispatchTerminator.targets()
-            );
-        }
-        return terminator;
-    }
 }

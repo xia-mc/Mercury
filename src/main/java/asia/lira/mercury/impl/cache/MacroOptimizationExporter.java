@@ -1,11 +1,12 @@
 package asia.lira.mercury.impl.cache;
 
+import asia.lira.mercury.jit.dump.DumpUtils;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +21,7 @@ public final class MacroOptimizationExporter {
         Path profileRoot = root.resolve("macro-profile");
         Path specializationRoot = root.resolve("macro-specialization");
         Path tier2Root = root.resolve("tier2");
-        recreateDirectory(root);
+        DumpUtils.recreateDirectory(root);
         Files.createDirectories(profileRoot);
         Files.createDirectories(specializationRoot);
         Files.createDirectories(tier2Root);
@@ -83,26 +84,6 @@ public final class MacroOptimizationExporter {
 
     private static void write(Path root, String fileName, List<String> lines) throws IOException {
         Files.write(root.resolve(fileName), lines, StandardCharsets.UTF_8);
-    }
-
-    private static void recreateDirectory(Path directory) throws IOException {
-        if (Files.exists(directory)) {
-            try (var walk = Files.walk(directory)) {
-                walk.sorted(Comparator.reverseOrder()).forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (IOException exception) {
-                        throw new RuntimeException(exception);
-                    }
-                });
-            } catch (RuntimeException exception) {
-                if (exception.getCause() instanceof IOException ioException) {
-                    throw ioException;
-                }
-                throw exception;
-            }
-        }
-        Files.createDirectories(directory);
     }
 
     public record ExportResult(Path outputDirectory, int profileCount, int specializationCount, int tier2Count) {

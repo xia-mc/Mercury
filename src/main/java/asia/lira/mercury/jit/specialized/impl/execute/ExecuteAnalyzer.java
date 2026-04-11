@@ -1,5 +1,6 @@
 package asia.lira.mercury.jit.specialized.impl.execute;
 
+import asia.lira.mercury.jit.pipeline.CommandPatterns;
 import asia.lira.mercury.jit.specialized.api.SpecializationAnalyzer;
 import asia.lira.mercury.jit.specialized.api.SpecializedPlan;
 import com.mojang.brigadier.StringReader;
@@ -16,16 +17,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class ExecuteAnalyzer implements SpecializationAnalyzer {
-    private static final Pattern SCOREBOARD_SET_PATTERN = Pattern.compile("^scoreboard\\s+players\\s+set\\s+(\\S+)\\s+(\\S+)\\s+(-?\\d+)$");
-    private static final Pattern SCOREBOARD_ADD_PATTERN = Pattern.compile("^scoreboard\\s+players\\s+add\\s+(\\S+)\\s+(\\S+)\\s+(-?\\d+)$");
-    private static final Pattern SCOREBOARD_REMOVE_PATTERN = Pattern.compile("^scoreboard\\s+players\\s+remove\\s+(\\S+)\\s+(\\S+)\\s+(-?\\d+)$");
-    private static final Pattern SCOREBOARD_GET_PATTERN = Pattern.compile("^scoreboard\\s+players\\s+get\\s+(\\S+)\\s+(\\S+)$");
-    private static final Pattern SCOREBOARD_RESET_PATTERN = Pattern.compile("^scoreboard\\s+players\\s+reset\\s+(\\S+)\\s+(\\S+)$");
-    private static final Pattern SCOREBOARD_OPERATION_PATTERN = Pattern.compile("^scoreboard\\s+players\\s+operation\\s+(\\S+)\\s+(\\S+)\\s+(=|\\+=|-=|\\*=|/=|%=|<|>|><)\\s+(\\S+)\\s+(\\S+)$");
-    private static final Pattern DATA_MODIFY_STORAGE_SET_VALUE_PATTERN = Pattern.compile("^data\\s+modify\\s+storage\\s+(\\S+)\\s+(\\S+)\\s+set\\s+value\\s+(.+)$");
-    private static final Pattern DATA_MODIFY_STORAGE_SET_FROM_PATTERN = Pattern.compile("^data\\s+modify\\s+storage\\s+(\\S+)\\s+(\\S+)\\s+set\\s+from\\s+storage\\s+(\\S+)\\s+(\\S+)$");
-    private static final Pattern DATA_MODIFY_STORAGE_MERGE_VALUE_PATTERN = Pattern.compile("^data\\s+modify\\s+storage\\s+(\\S+)\\s+(\\S+)\\s+merge\\s+value\\s+(.+)$");
-    private static final Pattern DATA_MODIFY_STORAGE_MERGE_FROM_PATTERN = Pattern.compile("^data\\s+modify\\s+storage\\s+(\\S+)\\s+(\\S+)\\s+merge\\s+from\\s+storage\\s+(\\S+)\\s+(\\S+)$");
     private static final Pattern EXECUTE_IF_SCORE_COMPARE_PATTERN = Pattern.compile("^if\\s+score\\s+(\\S+)\\s+(\\S+)\\s*(=|<|<=|>|>=)\\s*(\\S+)\\s+(\\S+)(?:\\s+(.*))?$");
     private static final Pattern EXECUTE_IF_SCORE_MATCHES_PATTERN = Pattern.compile("^if\\s+score\\s+(\\S+)\\s+(\\S+)\\s+matches\\s+(\\S+)(?:\\s+(.*))?$");
     private static final Pattern EXECUTE_STORE_SCORE_PATTERN = Pattern.compile("^store\\s+(result|success)\\s+score\\s+(\\S+)\\s+(\\S+)(?:\\s+(.*))?$");
@@ -112,37 +103,37 @@ public final class ExecuteAnalyzer implements SpecializationAnalyzer {
     }
 
     private static @Nullable ExecuteTerminal parseTerminal(String sourceText) {
-        Matcher matcher = SCOREBOARD_SET_PATTERN.matcher(sourceText);
+        Matcher matcher = CommandPatterns.SCOREBOARD_SET.matcher(sourceText);
         if (matcher.matches()) {
             return new ScoreTerminalPlan(sourceText, ScoreTerminalPlan.Operation.SET, matcher.group(1), matcher.group(2), Integer.parseInt(matcher.group(3)), null, null, null);
         }
 
-        matcher = SCOREBOARD_ADD_PATTERN.matcher(sourceText);
+        matcher = CommandPatterns.SCOREBOARD_ADD.matcher(sourceText);
         if (matcher.matches()) {
             return new ScoreTerminalPlan(sourceText, ScoreTerminalPlan.Operation.ADD, matcher.group(1), matcher.group(2), Integer.parseInt(matcher.group(3)), null, null, null);
         }
 
-        matcher = SCOREBOARD_REMOVE_PATTERN.matcher(sourceText);
+        matcher = CommandPatterns.SCOREBOARD_REMOVE.matcher(sourceText);
         if (matcher.matches()) {
             return new ScoreTerminalPlan(sourceText, ScoreTerminalPlan.Operation.ADD, matcher.group(1), matcher.group(2), -Integer.parseInt(matcher.group(3)), null, null, null);
         }
 
-        matcher = SCOREBOARD_GET_PATTERN.matcher(sourceText);
+        matcher = CommandPatterns.SCOREBOARD_GET.matcher(sourceText);
         if (matcher.matches()) {
             return new ScoreTerminalPlan(sourceText, ScoreTerminalPlan.Operation.GET, matcher.group(1), matcher.group(2), 0, null, null, null);
         }
 
-        matcher = SCOREBOARD_RESET_PATTERN.matcher(sourceText);
+        matcher = CommandPatterns.SCOREBOARD_RESET.matcher(sourceText);
         if (matcher.matches()) {
             return new ScoreTerminalPlan(sourceText, ScoreTerminalPlan.Operation.RESET, matcher.group(1), matcher.group(2), 0, null, null, null);
         }
 
-        matcher = SCOREBOARD_OPERATION_PATTERN.matcher(sourceText);
+        matcher = CommandPatterns.SCOREBOARD_OPERATION.matcher(sourceText);
         if (matcher.matches()) {
             return new ScoreTerminalPlan(sourceText, ScoreTerminalPlan.Operation.SCORE_OPERATION, matcher.group(1), matcher.group(2), 0, matcher.group(4), matcher.group(5), matcher.group(3));
         }
 
-        matcher = DATA_MODIFY_STORAGE_SET_VALUE_PATTERN.matcher(sourceText);
+        matcher = CommandPatterns.DATA_MODIFY_STORAGE_SET_VALUE.matcher(sourceText);
         if (matcher.matches()) {
             try {
                 return new DataStorageTerminalPlan(
@@ -159,7 +150,7 @@ public final class ExecuteAnalyzer implements SpecializationAnalyzer {
             }
         }
 
-        matcher = DATA_MODIFY_STORAGE_SET_FROM_PATTERN.matcher(sourceText);
+        matcher = CommandPatterns.DATA_MODIFY_STORAGE_SET_FROM.matcher(sourceText);
         if (matcher.matches()) {
             try {
                 return new DataStorageTerminalPlan(
@@ -176,7 +167,7 @@ public final class ExecuteAnalyzer implements SpecializationAnalyzer {
             }
         }
 
-        matcher = DATA_MODIFY_STORAGE_MERGE_VALUE_PATTERN.matcher(sourceText);
+        matcher = CommandPatterns.DATA_MODIFY_STORAGE_MERGE_VALUE.matcher(sourceText);
         if (matcher.matches()) {
             try {
                 return new DataStorageTerminalPlan(
@@ -193,7 +184,7 @@ public final class ExecuteAnalyzer implements SpecializationAnalyzer {
             }
         }
 
-        matcher = DATA_MODIFY_STORAGE_MERGE_FROM_PATTERN.matcher(sourceText);
+        matcher = CommandPatterns.DATA_MODIFY_STORAGE_MERGE_FROM.matcher(sourceText);
         if (matcher.matches()) {
             try {
                 return new DataStorageTerminalPlan(

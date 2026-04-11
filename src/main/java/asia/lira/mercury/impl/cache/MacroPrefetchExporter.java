@@ -2,6 +2,8 @@ package asia.lira.mercury.impl.cache;
 
 import net.minecraft.util.Identifier;
 
+import asia.lira.mercury.jit.dump.DumpUtils;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -19,7 +21,7 @@ public final class MacroPrefetchExporter {
         Path root = runDirectory.resolve("mercury").resolve("dumped").resolve("prefetch");
         Path candidates = root.resolve("candidates");
         Path active = root.resolve("active");
-        recreateDirectory(root);
+        DumpUtils.recreateDirectory(root);
         Files.createDirectories(candidates);
         Files.createDirectories(active);
 
@@ -69,26 +71,6 @@ public final class MacroPrefetchExporter {
             lines.add("lastInvalidation=" + line.lastInvalidationReason());
         }
         Files.write(path, lines, StandardCharsets.UTF_8);
-    }
-
-    private static void recreateDirectory(Path directory) throws IOException {
-        if (Files.exists(directory)) {
-            try (var walk = Files.walk(directory)) {
-                walk.sorted(Comparator.reverseOrder()).forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (IOException exception) {
-                        throw new RuntimeException(exception);
-                    }
-                });
-            } catch (RuntimeException exception) {
-                if (exception.getCause() instanceof IOException ioException) {
-                    throw ioException;
-                }
-                throw exception;
-            }
-        }
-        Files.createDirectories(directory);
     }
 
     public record ExportResult(

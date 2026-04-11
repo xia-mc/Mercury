@@ -11,12 +11,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class BaselineCompiler {
-    private static final Pattern SCOREBOARD_SET_PATTERN = Pattern.compile("^scoreboard\\s+players\\s+set\\s+(\\S+)\\s+(\\S+)\\s+(-?\\d+)$");
-    private static final Pattern SCOREBOARD_ADD_PATTERN = Pattern.compile("^scoreboard\\s+players\\s+add\\s+(\\S+)\\s+(\\S+)\\s+(-?\\d+)$");
-    private static final Pattern SCOREBOARD_REMOVE_PATTERN = Pattern.compile("^scoreboard\\s+players\\s+remove\\s+(\\S+)\\s+(\\S+)\\s+(-?\\d+)$");
-    private static final Pattern SCOREBOARD_GET_PATTERN = Pattern.compile("^scoreboard\\s+players\\s+get\\s+(\\S+)\\s+(\\S+)$");
-    private static final Pattern SCOREBOARD_RESET_PATTERN = Pattern.compile("^scoreboard\\s+players\\s+reset\\s+(\\S+)\\s+(\\S+)$");
-    private static final Pattern SCOREBOARD_OPERATION_PATTERN = Pattern.compile("^scoreboard\\s+players\\s+operation\\s+(\\S+)\\s+(\\S+)\\s+(=|\\+=|-=|\\*=|/=|%=|<|>|><)\\s+(\\S+)\\s+(\\S+)$");
     private static final Pattern RETURN_VALUE_PATTERN = Pattern.compile("^return\\s+(-?\\d+)$");
 
     private BaselineCompiler() {
@@ -87,7 +81,7 @@ public final class BaselineCompiler {
             return false;
         }
 
-        Matcher matcher = SCOREBOARD_SET_PATTERN.matcher(sourceText);
+        Matcher matcher = CommandPatterns.SCOREBOARD_SET.matcher(sourceText);
         if (matcher.matches()) {
             Integer slotId = JitPreparationRegistry.getInstance().slotRegistry().getSlotId(matcher.group(1), matcher.group(2));
             if (slotId == null) {
@@ -97,7 +91,7 @@ public final class BaselineCompiler {
             return true;
         }
 
-        matcher = SCOREBOARD_ADD_PATTERN.matcher(sourceText);
+        matcher = CommandPatterns.SCOREBOARD_ADD.matcher(sourceText);
         if (matcher.matches()) {
             Integer slotId = JitPreparationRegistry.getInstance().slotRegistry().getSlotId(matcher.group(1), matcher.group(2));
             if (slotId == null) {
@@ -107,7 +101,7 @@ public final class BaselineCompiler {
             return true;
         }
 
-        matcher = SCOREBOARD_REMOVE_PATTERN.matcher(sourceText);
+        matcher = CommandPatterns.SCOREBOARD_REMOVE.matcher(sourceText);
         if (matcher.matches()) {
             Integer slotId = JitPreparationRegistry.getInstance().slotRegistry().getSlotId(matcher.group(1), matcher.group(2));
             if (slotId == null) {
@@ -117,7 +111,7 @@ public final class BaselineCompiler {
             return true;
         }
 
-        matcher = SCOREBOARD_GET_PATTERN.matcher(sourceText);
+        matcher = CommandPatterns.SCOREBOARD_GET.matcher(sourceText);
         if (matcher.matches()) {
             Integer slotId = JitPreparationRegistry.getInstance().slotRegistry().getSlotId(matcher.group(1), matcher.group(2));
             if (slotId == null) {
@@ -127,7 +121,7 @@ public final class BaselineCompiler {
             return true;
         }
 
-        matcher = SCOREBOARD_RESET_PATTERN.matcher(sourceText);
+        matcher = CommandPatterns.SCOREBOARD_RESET.matcher(sourceText);
         if (matcher.matches()) {
             Integer slotId = JitPreparationRegistry.getInstance().slotRegistry().getSlotId(matcher.group(1), matcher.group(2));
             if (slotId == null) {
@@ -137,7 +131,7 @@ public final class BaselineCompiler {
             return true;
         }
 
-        matcher = SCOREBOARD_OPERATION_PATTERN.matcher(sourceText);
+        matcher = CommandPatterns.SCOREBOARD_OPERATION.matcher(sourceText);
         if (matcher.matches()) {
             Integer targetSlot = JitPreparationRegistry.getInstance().slotRegistry().getSlotId(matcher.group(1), matcher.group(2));
             Integer sourceSlot = JitPreparationRegistry.getInstance().slotRegistry().getSlotId(matcher.group(4), matcher.group(5));

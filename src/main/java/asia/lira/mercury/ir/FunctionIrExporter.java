@@ -1,12 +1,12 @@
 package asia.lira.mercury.ir;
 
+import asia.lira.mercury.jit.dump.DumpUtils;
 import net.minecraft.util.Identifier;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.List;
 
 public final class FunctionIrExporter {
@@ -15,7 +15,7 @@ public final class FunctionIrExporter {
 
     public static ExportResult exportParsed(FunctionIrRegistry registry, Path runDirectory) throws IOException {
         Path outputDirectory = runDirectory.resolve("mercury").resolve("dumped").resolve("parsed");
-        recreateEmptyDirectory(outputDirectory);
+        DumpUtils.recreateDirectory(outputDirectory);
 
         int exported = 0;
         for (Identifier id : registry.getParsedIds()) {
@@ -33,7 +33,7 @@ public final class FunctionIrExporter {
 
     public static ExportResult exportSemantic(FunctionIrRegistry registry, Path runDirectory) throws IOException {
         Path outputDirectory = runDirectory.resolve("mercury").resolve("dumped").resolve("semantic");
-        recreateEmptyDirectory(outputDirectory);
+        DumpUtils.recreateDirectory(outputDirectory);
 
         int exported = 0;
         for (Identifier id : registry.getSemanticIds()) {
@@ -47,28 +47,6 @@ public final class FunctionIrExporter {
         }
 
         return new ExportResult(outputDirectory, exported);
-    }
-
-    private static void recreateEmptyDirectory(Path directory) throws IOException {
-        if (Files.exists(directory)) {
-            try (var stream = Files.walk(directory)) {
-                stream.sorted(Comparator.reverseOrder())
-                        .forEach(path -> {
-                            try {
-                                Files.delete(path);
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-                        });
-            } catch (RuntimeException e) {
-                if (e.getCause() instanceof IOException ioException) {
-                    throw ioException;
-                }
-                throw e;
-            }
-        }
-
-        Files.createDirectories(directory);
     }
 
     private static void writeLines(Path rootDirectory, Identifier id, List<String> lines) throws IOException {

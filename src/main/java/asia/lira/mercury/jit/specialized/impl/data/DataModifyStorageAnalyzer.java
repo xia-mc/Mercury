@@ -1,5 +1,6 @@
 package asia.lira.mercury.jit.specialized.impl.data;
 
+import asia.lira.mercury.jit.pipeline.CommandPatterns;
 import asia.lira.mercury.jit.specialized.api.SpecializationAnalyzer;
 import asia.lira.mercury.jit.specialized.api.SpecializedPlan;
 import com.mojang.brigadier.StringReader;
@@ -9,17 +10,11 @@ import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public final class DataModifyStorageAnalyzer implements SpecializationAnalyzer {
-    private static final Pattern SET_VALUE = Pattern.compile("^data\\s+modify\\s+storage\\s+(\\S+)\\s+(\\S+)\\s+set\\s+value\\s+(.+)$");
-    private static final Pattern SET_FROM = Pattern.compile("^data\\s+modify\\s+storage\\s+(\\S+)\\s+(\\S+)\\s+set\\s+from\\s+storage\\s+(\\S+)\\s+(\\S+)$");
-    private static final Pattern MERGE_VALUE = Pattern.compile("^data\\s+modify\\s+storage\\s+(\\S+)\\s+(\\S+)\\s+merge\\s+value\\s+(.+)$");
-    private static final Pattern MERGE_FROM = Pattern.compile("^data\\s+modify\\s+storage\\s+(\\S+)\\s+(\\S+)\\s+merge\\s+from\\s+storage\\s+(\\S+)\\s+(\\S+)$");
-
     @Override
     public @Nullable SpecializedPlan analyze(String sourceText) {
-        Matcher matcher = SET_VALUE.matcher(sourceText);
+        Matcher matcher = CommandPatterns.DATA_MODIFY_STORAGE_SET_VALUE.matcher(sourceText);
         if (matcher.matches()) {
             try {
                 return new DataModifyStoragePlan(
@@ -36,7 +31,7 @@ public final class DataModifyStorageAnalyzer implements SpecializationAnalyzer {
             }
         }
 
-        matcher = SET_FROM.matcher(sourceText);
+        matcher = CommandPatterns.DATA_MODIFY_STORAGE_SET_FROM.matcher(sourceText);
         if (matcher.matches()) {
             try {
                 return new DataModifyStoragePlan(
@@ -53,7 +48,7 @@ public final class DataModifyStorageAnalyzer implements SpecializationAnalyzer {
             }
         }
 
-        matcher = MERGE_VALUE.matcher(sourceText);
+        matcher = CommandPatterns.DATA_MODIFY_STORAGE_MERGE_VALUE.matcher(sourceText);
         if (matcher.matches()) {
             try {
                 return new DataModifyStoragePlan(
@@ -70,7 +65,7 @@ public final class DataModifyStorageAnalyzer implements SpecializationAnalyzer {
             }
         }
 
-        matcher = MERGE_FROM.matcher(sourceText);
+        matcher = CommandPatterns.DATA_MODIFY_STORAGE_MERGE_FROM.matcher(sourceText);
         if (matcher.matches()) {
             try {
                 return new DataModifyStoragePlan(

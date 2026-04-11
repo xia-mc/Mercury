@@ -206,4 +206,47 @@ public record LoweredUnit(
             targets = List.copyOf(targets);
         }
     }
+
+    public static LoweredBlock remapShifted(LoweredBlock block, int fromIndex, int delta) {
+        return new LoweredBlock(block.programId(), block.instructions(), remapShifted(block.terminator(), fromIndex, delta));
+    }
+
+    public static LoweredTerminator remapShifted(LoweredTerminator terminator, int fromIndex, int delta) {
+        if (terminator instanceof JumpLocalTerminator jumpLocalTerminator) {
+            int target = jumpLocalTerminator.targetBlockIndex();
+            return new JumpLocalTerminator(target >= fromIndex ? target + delta : target);
+        }
+        if (terminator instanceof SuspendActionTerminator suspendActionTerminator) {
+            int next = suspendActionTerminator.continuationBlockIndex();
+            if (next >= fromIndex) {
+                next += delta;
+            }
+            return new SuspendActionTerminator(suspendActionTerminator.bindingId(), next, suspendActionTerminator.spillBeforeSlots());
+        }
+        if (terminator instanceof SuspendPrefetchedMacroTerminator suspendPrefetchedMacroTerminator) {
+            int next = suspendPrefetchedMacroTerminator.continuationBlockIndex();
+            if (next >= fromIndex) {
+                next += delta;
+            }
+            return new SuspendPrefetchedMacroTerminator(
+                    suspendPrefetchedMacroTerminator.planId(),
+                    suspendPrefetchedMacroTerminator.bindingId(),
+                    next,
+                    suspendPrefetchedMacroTerminator.spillBeforeSlots()
+            );
+        }
+        if (terminator instanceof Tier2MacroDispatchTerminator tier2MacroDispatchTerminator) {
+            int next = tier2MacroDispatchTerminator.continuationBlockIndex();
+            if (next >= fromIndex) {
+                next += delta;
+            }
+            return new Tier2MacroDispatchTerminator(
+                    tier2MacroDispatchTerminator.planId(),
+                    next,
+                    tier2MacroDispatchTerminator.spillBeforeSlots(),
+                    tier2MacroDispatchTerminator.targets()
+            );
+        }
+        return terminator;
+    }
 }

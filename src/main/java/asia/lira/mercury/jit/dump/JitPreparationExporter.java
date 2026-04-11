@@ -17,7 +17,7 @@ public final class JitPreparationExporter {
     public static ExportResult exportPrepared(Path runDirectory) throws IOException {
         JitPreparationRegistry registry = JitPreparationRegistry.getInstance();
         Path outputDirectory = runDirectory.resolve("mercury").resolve("dumped").resolve("prepared");
-        recreateDirectory(outputDirectory);
+        DumpUtils.recreateDirectory(outputDirectory);
 
         int exported = 0;
         for (Identifier id : registry.objectiveRegistry().count() >= 0
@@ -38,27 +38,6 @@ public final class JitPreparationExporter {
         return registry.preparedFunctionIds().stream()
                 .sorted(Comparator.comparing(Identifier::toString))
                 .toList();
-    }
-
-    private static void recreateDirectory(Path directory) throws IOException {
-        if (Files.exists(directory)) {
-            try (var walk = Files.walk(directory)) {
-                walk.sorted(Comparator.reverseOrder())
-                        .forEach(path -> {
-                            try {
-                                Files.delete(path);
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-                        });
-            } catch (RuntimeException e) {
-                if (e.getCause() instanceof IOException ioException) {
-                    throw ioException;
-                }
-                throw e;
-            }
-        }
-        Files.createDirectories(directory);
     }
 
     private static void writeLines(Path root, Identifier id, List<String> lines) throws IOException {
