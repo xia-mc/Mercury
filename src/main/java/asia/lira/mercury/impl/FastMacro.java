@@ -1,6 +1,8 @@
 package asia.lira.mercury.impl;
 
 import asia.lira.mercury.impl.cache.MacroArgumentProvider;
+import asia.lira.mercury.mixin.accessor.MixinMacroFixedLineAccessor;
+import asia.lira.mercury.mixin.accessor.MixinMacroLineInvoker;
 import asia.lira.mercury.mixin.accessor.MixinMacroVariableLineAccessor;
 import asia.lira.mercury.object.LongShardedSLRUCache;
 import asia.lira.mercury.stat.FastMacroStats;
@@ -23,8 +25,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import static net.minecraft.server.function.Macro.Line;
-
 @SuppressWarnings({"unchecked"})
 public final class FastMacro<T extends AbstractServerCommandSource<T>> implements CommandFunction<T> {
     private static final DecimalFormat DECIMAL_FORMAT = Util.make(new DecimalFormat("#"), (format) -> {
@@ -36,13 +36,13 @@ public final class FastMacro<T extends AbstractServerCommandSource<T>> implement
     private static final LongShardedSLRUCache<ExpandedMacro<?>> CACHE = new LongShardedSLRUCache<>(CACHE_SIZE, 25);
     public final List<String> varNames;
     public final Identifier id;
-    public final List<Line<T>> lines;
+    public final List<?> lines;
     private final long thisHashCode = (((long) System.identityHashCode(this)) << 32);
 
     // buffer
     private final NbtElement[] argBuffer;
 
-    public FastMacro(Identifier id, @NotNull List<Line<T>> lines, @NotNull List<String> varNames) {
+    public FastMacro(Identifier id, @NotNull List<?> lines, @NotNull List<String> varNames) {
         this.id = id;
         this.lines = lines;
         this.varNames = varNames;
@@ -147,20 +147,21 @@ public final class FastMacro<T extends AbstractServerCommandSource<T>> implement
         List<String> sourceLines = new ArrayList<>(lines.size());
 
         for (int i = 0, linesSize = lines.size(); i < linesSize; i++) {
-            Line<T> line = lines.get(i);
-            if (line instanceof Macro.FixedLine<T> fixedLine) {
-                list[i] = fixedLine.action;
-                sourceLines.add(stringifyAction(fixedLine.action));
+            Object line = lines.get(i);
+            if (line instanceof MixinMacroFixedLineAccessor<?> fixedLine) {
+                SourcedCommandAction<T> action = ((MixinMacroFixedLineAccessor<T>) fixedLine).mercury$getAction();
+                list[i] = action;
+                sourceLines.add(stringifyAction(action));
                 continue;
             }
 
-            Macro.VariableLine<T> variableLine = (Macro.VariableLine<T>) line;
-            List<String> values = variableLine.getDependentVariables().intStream()
+            MixinMacroLineInvoker<T> lineInvoker = (MixinMacroLineInvoker<T>) line;
+            List<String> values = lineInvoker.mercury$getDependentVariables().intStream()
                     .mapToObj(index -> arguments[index])
                     .map(FastMacro::toString)
                     .toList();
-            list[i] = line.instantiate(values, dispatcher, id);
-            sourceLines.add(rebuildVariableSource(variableLine, values));
+            list[i] = lineInvoker.mercury$instantiate(values, dispatcher, id);
+            sourceLines.add(rebuildVariableSource(line, values));
         }
 
         ExpandedMacro<T> procedure = new ExpandedMacro<>(
@@ -170,7 +171,7 @@ public final class FastMacro<T extends AbstractServerCommandSource<T>> implement
         return new MaterializedMacro<>(procedure, List.of(list), List.copyOf(sourceLines), uniqueId);
     }
 
-    private static <T extends AbstractServerCommandSource<T>> String rebuildVariableSource(Macro.VariableLine<T> line, List<String> values) {
+    private static <T extends AbstractServerCommandSource<T>> String rebuildVariableSource(Object line, List<String> values) {
         var accessor = (MixinMacroVariableLineAccessor<T>) line;
         var invocation = accessor.mercury$getInvocation();
         StringBuilder builder = new StringBuilder();

@@ -16,6 +16,7 @@ import asia.lira.mercury.jit.pipeline.BaselineProgram;
 import asia.lira.mercury.jit.pipeline.LoweredUnit;
 import asia.lira.mercury.jit.pipeline.LoweredUnitInliner;
 import asia.lira.mercury.jit.pipeline.SlotEffectSummary;
+import asia.lira.mercury.jit.pass.ArithmeticSemanticsOptimizationPass;
 import asia.lira.mercury.jit.pass.BaselinePassContext;
 import asia.lira.mercury.jit.pass.BaselinePassPipeline;
 import asia.lira.mercury.jit.pass.MacroPrefetchPass;
@@ -119,6 +120,7 @@ public final class BaselineCompiledFunctionRegistry {
         BaselinePassPipeline passPipeline = new BaselinePassPipeline(List.of(
                 new MacroPrefetchPass(),
                 new UnresolvedCallIsolationPass(),
+                new ArithmeticSemanticsOptimizationPass(),
                 new SlotPromotionPass()
         ));
 
@@ -261,6 +263,21 @@ public final class BaselineCompiledFunctionRegistry {
         internalNames.put(syntheticId, BaselineBytecodeCompiler.internalNameFor(syntheticId));
         requiredSlotsById.put(syntheticId, collectRequiredSlots(loweredUnit));
         callSiteCounts.putAll(collectCallSiteCounts(List.of(loweredUnit)));
+        Map<Identifier, SlotEffectSummary> effectSummaries = collectEffectSummaries(Map.of(syntheticId, loweredUnit));
+        BaselinePassPipeline passPipeline = new BaselinePassPipeline(List.of(
+                new MacroPrefetchPass(),
+                new UnresolvedCallIsolationPass(),
+                new ArithmeticSemanticsOptimizationPass(),
+                new SlotPromotionPass()
+        ));
+        loweredUnit = passPipeline.apply(loweredUnit, new BaselinePassContext(
+                internalNames,
+                callSiteCounts,
+                requiredSlotsById,
+                effectSummaries,
+                collectUnitSlots(requiredSlotsById.get(syntheticId))
+        ));
+        requiredSlotsById.put(syntheticId, collectRequiredSlots(loweredUnit));
 
         Set<Identifier> classesWithSharedRequiredSlots = collectClassesWithSharedRequiredSlots(
                 java.util.Set.of(syntheticId),

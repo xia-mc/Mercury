@@ -8,7 +8,6 @@ import net.minecraft.command.SourcedCommandAction;
 import net.minecraft.server.command.AbstractServerCommandSource;
 import net.minecraft.server.function.CommandFunction;
 import net.minecraft.server.function.ExpandedMacro;
-import net.minecraft.server.function.Macro;
 import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
@@ -21,7 +20,7 @@ import java.util.List;
 @Mixin(targets = "net.minecraft.server.function.FunctionBuilder")
 public class MixinFunctionBuilder<T extends AbstractServerCommandSource<T>> {
 
-    @Shadow private @Nullable List<Macro.Line<T>> macroLines;
+    @Shadow private @Nullable List<?> macroLines;
 
     @Shadow @Final private List<String> usedVariables;
 

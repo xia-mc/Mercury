@@ -34,6 +34,9 @@ public final class ExecuteAnalyzer implements SpecializationAnalyzer {
         while (!remaining.startsWith("run ")) {
             Matcher storeScore = EXECUTE_STORE_SCORE_PATTERN.matcher(remaining);
             if (storeScore.matches()) {
+                if (!isLiteralScoreTarget(storeScore.group(2), storeScore.group(3))) {
+                    return null;
+                }
                 modifiers.add(new StoreScoreModifier(
                         "result".equals(storeScore.group(1)),
                         storeScore.group(2),
@@ -62,6 +65,10 @@ public final class ExecuteAnalyzer implements SpecializationAnalyzer {
 
             Matcher compare = EXECUTE_IF_SCORE_COMPARE_PATTERN.matcher(remaining);
             if (compare.matches()) {
+                if (!isLiteralScoreTarget(compare.group(1), compare.group(2))
+                        || !isLiteralScoreTarget(compare.group(4), compare.group(5))) {
+                    return null;
+                }
                 modifiers.add(new IfScoreCompareModifier(
                         compare.group(1),
                         compare.group(2),
@@ -75,6 +82,9 @@ public final class ExecuteAnalyzer implements SpecializationAnalyzer {
 
             Matcher matches = EXECUTE_IF_SCORE_MATCHES_PATTERN.matcher(remaining);
             if (matches.matches()) {
+                if (!isLiteralScoreTarget(matches.group(1), matches.group(2))) {
+                    return null;
+                }
                 try {
                     modifiers.add(new IfScoreMatchesModifier(
                             matches.group(1),
@@ -105,31 +115,50 @@ public final class ExecuteAnalyzer implements SpecializationAnalyzer {
     private static @Nullable ExecuteTerminal parseTerminal(String sourceText) {
         Matcher matcher = CommandPatterns.SCOREBOARD_SET.matcher(sourceText);
         if (matcher.matches()) {
+            if (!isLiteralScoreTarget(matcher.group(1), matcher.group(2))) {
+                return null;
+            }
             return new ScoreTerminalPlan(sourceText, ScoreTerminalPlan.Operation.SET, matcher.group(1), matcher.group(2), Integer.parseInt(matcher.group(3)), null, null, null);
         }
 
         matcher = CommandPatterns.SCOREBOARD_ADD.matcher(sourceText);
         if (matcher.matches()) {
+            if (!isLiteralScoreTarget(matcher.group(1), matcher.group(2))) {
+                return null;
+            }
             return new ScoreTerminalPlan(sourceText, ScoreTerminalPlan.Operation.ADD, matcher.group(1), matcher.group(2), Integer.parseInt(matcher.group(3)), null, null, null);
         }
 
         matcher = CommandPatterns.SCOREBOARD_REMOVE.matcher(sourceText);
         if (matcher.matches()) {
+            if (!isLiteralScoreTarget(matcher.group(1), matcher.group(2))) {
+                return null;
+            }
             return new ScoreTerminalPlan(sourceText, ScoreTerminalPlan.Operation.ADD, matcher.group(1), matcher.group(2), -Integer.parseInt(matcher.group(3)), null, null, null);
         }
 
         matcher = CommandPatterns.SCOREBOARD_GET.matcher(sourceText);
         if (matcher.matches()) {
+            if (!isLiteralScoreTarget(matcher.group(1), matcher.group(2))) {
+                return null;
+            }
             return new ScoreTerminalPlan(sourceText, ScoreTerminalPlan.Operation.GET, matcher.group(1), matcher.group(2), 0, null, null, null);
         }
 
         matcher = CommandPatterns.SCOREBOARD_RESET.matcher(sourceText);
         if (matcher.matches()) {
+            if (!isLiteralScoreTarget(matcher.group(1), matcher.group(2))) {
+                return null;
+            }
             return new ScoreTerminalPlan(sourceText, ScoreTerminalPlan.Operation.RESET, matcher.group(1), matcher.group(2), 0, null, null, null);
         }
 
         matcher = CommandPatterns.SCOREBOARD_OPERATION.matcher(sourceText);
         if (matcher.matches()) {
+            if (!isLiteralScoreTarget(matcher.group(1), matcher.group(2))
+                    || !isLiteralScoreTarget(matcher.group(4), matcher.group(5))) {
+                return null;
+            }
             return new ScoreTerminalPlan(sourceText, ScoreTerminalPlan.Operation.SCORE_OPERATION, matcher.group(1), matcher.group(2), 0, matcher.group(4), matcher.group(5), matcher.group(3));
         }
 
@@ -210,5 +239,23 @@ public final class ExecuteAnalyzer implements SpecializationAnalyzer {
 
     private static NumberRange.IntRange parseRange(String expression) throws Exception {
         return NumberRangeArgumentType.intRange().parse(new StringReader(expression));
+    }
+
+    private static boolean isLiteralScoreTarget(String holder, String objective) {
+        return isSingleLiteralScoreHolder(holder) && isLiteralScoreObjective(objective);
+    }
+
+    private static boolean isSingleLiteralScoreHolder(String token) {
+        // TODO: Support selector holders by preserving or rebuilding Brigadier parsing and
+        // invoking ScoreHolderArgumentType.getScoreboardScoreHolders with the current source.
+        return isLiteralScoreToken(token) && token.charAt(0) != '@';
+    }
+
+    private static boolean isLiteralScoreObjective(String token) {
+        return isLiteralScoreToken(token);
+    }
+
+    private static boolean isLiteralScoreToken(String token) {
+        return token != null && !token.isEmpty() && token.charAt(0) != '@' && !token.startsWith("$(") && !"*".equals(token);
     }
 }

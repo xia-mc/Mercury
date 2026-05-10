@@ -1,6 +1,7 @@
 package asia.lira.mercury.ir;
 
 import asia.lira.mercury.mixin.accessor.MixinCommandContextAccessor;
+import asia.lira.mercury.mixin.accessor.MixinMacroFixedLineAccessor;
 import asia.lira.mercury.mixin.accessor.MixinMacroVariableLineAccessor;
 import asia.lira.mercury.mixin.accessor.MixinSingleCommandActionAccessor;
 import com.mojang.brigadier.Command;
@@ -13,7 +14,6 @@ import net.minecraft.command.MacroInvocation;
 import net.minecraft.command.SingleCommandAction;
 import net.minecraft.command.SourcedCommandAction;
 import net.minecraft.server.command.AbstractServerCommandSource;
-import net.minecraft.server.function.Macro;
 import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
 
@@ -28,20 +28,19 @@ public final class FunctionIrCompiler {
     public static <T extends AbstractServerCommandSource<T>> FunctionIrRegistry.ParsedFunctionIr compile(
             Identifier id,
             @Nullable List<SourcedCommandAction<T>> actions,
-            @Nullable List<Macro.Line<T>> macroLines,
+            @Nullable List<?> macroLines,
             List<String> usedVariables
     ) {
         List<FunctionIrRegistry.ParseNode> nodes = new ArrayList<>();
 
         if (macroLines != null) {
-            for (Macro.Line<T> line : macroLines) {
-                if (line instanceof Macro.FixedLine<T> fixedLine) {
-                    nodes.add(compileAction(fixedLine.action));
+            for (Object line : macroLines) {
+                if (line instanceof MixinMacroFixedLineAccessor<?> fixedLine) {
+                    nodes.add(compileAction(((MixinMacroFixedLineAccessor<T>) fixedLine).mercury$getAction()));
                     continue;
                 }
 
-                Macro.VariableLine<T> variableLine = (Macro.VariableLine<T>) line;
-                nodes.add(compileMacroTemplate(variableLine));
+                nodes.add(compileMacroTemplate(line));
             }
         } else if (actions != null) {
             for (int i = 0; i < actions.size(); i++) {
@@ -101,7 +100,7 @@ public final class FunctionIrCompiler {
         );
     }
 
-    private static <T extends AbstractServerCommandSource<T>> FunctionIrRegistry.MacroTemplateParseNode compileMacroTemplate(Macro.VariableLine<T> line) {
+    private static <T extends AbstractServerCommandSource<T>> FunctionIrRegistry.MacroTemplateParseNode compileMacroTemplate(Object line) {
         MixinMacroVariableLineAccessor<T> accessor = (MixinMacroVariableLineAccessor<T>) line;
         MacroInvocation invocation = accessor.mercury$getInvocation();
         IntList indices = accessor.mercury$getVariableIndices();

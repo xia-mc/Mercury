@@ -56,7 +56,22 @@ public record LoweredUnit(
     public record ResetInstruction(int slotId, String sourceText) implements LoweredInstruction {
     }
 
-    public record OperationInstruction(int primarySlot, int secondarySlot, String operation, String sourceText) implements LoweredInstruction {
+    public enum ArithmeticSemantics {
+        VANILLA,
+        NON_ZERO_DIVISOR,
+        TRUNCATING_SAFE
+    }
+
+    public record OperationInstruction(
+            int primarySlot,
+            int secondarySlot,
+            String operation,
+            String sourceText,
+            ArithmeticSemantics arithmeticSemantics
+    ) implements LoweredInstruction {
+        public OperationInstruction(int primarySlot, int secondarySlot, String operation, String sourceText) {
+            this(primarySlot, secondarySlot, operation, sourceText, ArithmeticSemantics.VANILLA);
+        }
     }
 
     public record CallInstruction(

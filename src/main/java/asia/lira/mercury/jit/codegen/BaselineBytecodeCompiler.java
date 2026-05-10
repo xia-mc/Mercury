@@ -203,7 +203,7 @@ public final class BaselineBytecodeCompiler {
                 case LoweredUnit.ResetInstruction reset ->
                         BaselineBytecodeOps.buildReset(visitor, reset.slotId());
                 case LoweredUnit.OperationInstruction operation ->
-                        emitOperation(visitor, unit, operation.primarySlot(), operation.secondarySlot(), operation.operation());
+                        emitOperation(visitor, unit, operation.primarySlot(), operation.secondarySlot(), operation.operation(), operation.arithmeticSemantics());
                 case LoweredUnit.CallInstruction call ->
                         emitDirectInvoke(visitor, unit, call.targetFunction(), call.bindingId(), call.spillBeforeSlots(), call.reloadAfterSlots(), internalNames, callSiteCounts, requiredSlotsById, false);
                 case LoweredUnit.ReflectiveBridgeInstruction reflectiveBridge ->
@@ -276,15 +276,22 @@ public final class BaselineBytecodeCompiler {
         }
     }
 
-    private static void emitOperation(MethodVisitor visitor, LoweredUnit unit, int primarySlot, int secondarySlot, String operation) {
+    private static void emitOperation(
+            MethodVisitor visitor,
+            LoweredUnit unit,
+            int primarySlot,
+            int secondarySlot,
+            String operation,
+            LoweredUnit.ArithmeticSemantics arithmeticSemantics
+    ) {
         if (unit.isPromoted(primarySlot) && unit.isPromoted(secondarySlot)) {
-            BaselineBytecodeOps.buildPromotedOperation(visitor, unit.localIndexFor(primarySlot), unit.localIndexFor(secondarySlot), operation);
+            BaselineBytecodeOps.buildPromotedOperation(visitor, unit.localIndexFor(primarySlot), unit.localIndexFor(secondarySlot), operation, arithmeticSemantics);
         } else if (unit.isPromoted(primarySlot)) {
-            BaselineBytecodeOps.buildMixedOperationPrimaryPromoted(visitor, unit.localIndexFor(primarySlot), secondarySlot, operation);
+            BaselineBytecodeOps.buildMixedOperationPrimaryPromoted(visitor, unit.localIndexFor(primarySlot), secondarySlot, operation, arithmeticSemantics);
         } else if (unit.isPromoted(secondarySlot)) {
-            BaselineBytecodeOps.buildMixedOperationSecondaryPromoted(visitor, primarySlot, unit.localIndexFor(secondarySlot), operation);
+            BaselineBytecodeOps.buildMixedOperationSecondaryPromoted(visitor, primarySlot, unit.localIndexFor(secondarySlot), operation, arithmeticSemantics);
         } else {
-            BaselineBytecodeOps.buildOperation(visitor, primarySlot, secondarySlot, operation);
+            BaselineBytecodeOps.buildOperation(visitor, primarySlot, secondarySlot, operation, arithmeticSemantics);
         }
     }
 

@@ -5,6 +5,8 @@ import asia.lira.mercury.jit.runtime.ExecutionFrame;
 import asia.lira.mercury.jit.registry.JitPreparationRegistry;
 import asia.lira.mercury.jit.specialized.api.SpecializedExecutor;
 import asia.lira.mercury.jit.specialized.impl.data.StorageAccessRuntime;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import net.minecraft.command.argument.NbtPathArgumentType;
 import net.minecraft.predicate.NumberRange;
 import net.minecraft.scoreboard.ReadableScoreboardScore;
@@ -13,11 +15,14 @@ import net.minecraft.scoreboard.ScoreHolder;
 import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.text.Text;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public final class ExecuteExecutor implements SpecializedExecutor<ExecutePlan> {
+    public static final SimpleCommandExceptionType DIVISION_BY_ZERO_EXCEPTION =
+            new SimpleCommandExceptionType(Text.translatable("arguments.operation.div0"));
 
     @Override
     public void execute(ExecutePlan plan, ExecutionFrame frame, ServerCommandSource source) throws Exception {
@@ -89,7 +94,7 @@ public final class ExecuteExecutor implements SpecializedExecutor<ExecutePlan> {
             ScoreTerminalPlan plan,
             ExecutionFrame frame,
             ServerCommandSource source
-    ) {
+    ) throws CommandSyntaxException {
         return switch (plan.operation()) {
             case SET -> {
                 writeScore(frame, source, plan.targetHolder(), plan.targetObjective(), plan.value());
@@ -172,14 +177,24 @@ public final class ExecuteExecutor implements SpecializedExecutor<ExecutePlan> {
         }
     }
 
-    public static int applyOperation(int left, int right, String operation) {
+    public static int applyOperation(int left, int right, String operation) throws CommandSyntaxException {
         return switch (operation) {
             case "=" -> right;
             case "+=" -> left + right;
             case "-=" -> left - right;
             case "*=" -> left * right;
-            case "/=" -> right == 0 ? 0 : left / right;
-            case "%=" -> right == 0 ? 0 : left % right;
+            case "/=" -> {
+                if (right == 0) {
+                    throw DIVISION_BY_ZERO_EXCEPTION.create();
+                }
+                yield Math.floorDiv(left, right);
+            }
+            case "%=" -> {
+                if (right == 0) {
+                    throw DIVISION_BY_ZERO_EXCEPTION.create();
+                }
+                yield Math.floorMod(left, right);
+            }
             case "<" -> Math.min(left, right);
             case ">" -> Math.max(left, right);
             case "><" -> right;

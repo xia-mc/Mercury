@@ -9,6 +9,8 @@
     "MixinFunctionLoader",
     "MixinServerScoreboard",
     "accessor.MixinCommandContextAccessor",
+    "accessor.MixinMacroFixedLineAccessor",
+    "accessor.MixinMacroLineInvoker",
     "accessor.MixinMacroVariableLineAccessor",
     "accessor.MixinSingleCommandActionAccessor"
   ],

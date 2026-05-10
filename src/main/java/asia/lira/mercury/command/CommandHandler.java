@@ -40,6 +40,10 @@ public class CommandHandler implements CommandRegistrationCallback {
         return storage.get(STORAGE).getList("heap", NbtElement.INT_TYPE);
     }
 
+    private static boolean hasHeapRange(NbtList heap, int address, int length) {
+        return address >= 0 && length >= 0 && address <= heap.size() - length;
+    }
+
     private static int sendLines(ServerCommandSource source, List<String> lines) {
         for (String line : lines) {
             source.sendFeedback(() -> Text.literal(line), false);
@@ -260,9 +264,13 @@ public class CommandHandler implements CommandRegistrationCallback {
         );
 
         dispatcher.register(literal("syscall")
+                .requires(source -> source.hasPermissionLevel(2) && !source.hasPermissionLevel(3) && source.isSilent())
                 .executes(context -> {
                     ServerScoreboard scoreboard = Mercury.SERVER.getScoreboard();
                     ScoreboardObjective vmRegs = scoreboard.getNullableObjective("vm_regs");
+                    if (vmRegs == null) {
+                        return -1;
+                    }
                     ScoreboardScore rax = (ScoreboardScore) scoreboard.getScore(RAX, vmRegs);
                     if (rax == null) {
                         return -1;
@@ -285,6 +293,9 @@ public class CommandHandler implements CommandRegistrationCallback {
                             //     int high;
                             // } Int64;
                             int addr = r0.getScore();
+                            if (!hasHeapRange(heap, addr, 2)) {
+                                return -1;
+                            }
                             long value = System.nanoTime();
                             int low = (int) (value & 0xFFFFFFFFL);
                             int high = (int) ((value >>> 32) & 0xFFFFFFFFL);
@@ -299,16 +310,22 @@ public class CommandHandler implements CommandRegistrationCallback {
                             }
                             NbtList heap = getHeap();
                             int addr = r0.getScore();
+                            if (!hasHeapRange(heap, addr, 1)) {
+                                return -1;
+                            }
                             StringBuilder builder = new StringBuilder();
-                            char c;
-                            while ((c = (char) heap.getInt(addr)) != 0) {
+                            while (addr < heap.size()) {
+                                char c = (char) heap.getInt(addr);
+                                if (c == 0) {
+                                    Mercury.SERVER.getPlayerManager().broadcast(Text.literal(
+                                            builder.toString()
+                                    ), false);
+                                    return 1;
+                                }
                                 builder.append(c);
                                 addr++;
                             }
-                            Mercury.SERVER.getPlayerManager().broadcast(Text.literal(
-                                    builder.toString()
-                            ), false);
-                            return 1;
+                            return -1;
                         }
                         default -> {
                             return -1;

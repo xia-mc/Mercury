@@ -1,14 +1,20 @@
 package asia.lira.mercury.jit.codegen;
 
 import asia.lira.mercury.impl.cache.MacroPrefetchRuntime;
+import asia.lira.mercury.jit.pipeline.LoweredUnit;
 import asia.lira.mercury.jit.runtime.BaselineExecutionEngine;
 import asia.lira.mercury.jit.runtime.ExecutionFrame;
+import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
+import net.minecraft.text.Text;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 public final class BaselineBytecodeOps {
+    public static final SimpleCommandExceptionType DIVISION_BY_ZERO_EXCEPTION =
+            new SimpleCommandExceptionType(Text.translatable("arguments.operation.div0"));
+
     private static final String FRAME_INTERNAL = Type.getInternalName(ExecutionFrame.class);
     private static final String RUNTIME_INTERNAL = Type.getInternalName(BaselineExecutionEngine.class);
     private static final String PREFETCH_RUNTIME_INTERNAL = Type.getInternalName(MacroPrefetchRuntime.class);
@@ -52,7 +58,13 @@ public final class BaselineBytecodeOps {
         visitor.visitMethodInsn(Opcodes.INVOKESTATIC, RUNTIME_INTERNAL, "resetSlot", "(L" + FRAME_INTERNAL + ";I)V", false);
     }
 
-    public static void buildOperation(MethodVisitor visitor, int primarySlot, int secondarySlot, String operation) {
+    public static void buildOperation(
+            MethodVisitor visitor,
+            int primarySlot,
+            int secondarySlot,
+            String operation,
+            LoweredUnit.ArithmeticSemantics arithmeticSemantics
+    ) {
         switch (operation) {
             case "=" -> {
                 visitor.visitVarInsn(Opcodes.ALOAD, 0);
@@ -62,7 +74,8 @@ public final class BaselineBytecodeOps {
                 visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, FRAME_INTERNAL, "getSlotValue", "(I)I", false);
                 visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, FRAME_INTERNAL, "setSlotValue", "(II)V", false);
             }
-            case "+=", "-=", "*=", "/=", "%=", "<", ">" -> buildBinaryOperation(visitor, primarySlot, secondarySlot, operation);
+            case "+=", "-=", "*=", "/=", "%=", "<", ">" ->
+                    buildBinaryOperation(visitor, primarySlot, secondarySlot, operation, arithmeticSemantics);
             case "><" -> buildSwap(visitor, primarySlot, secondarySlot);
             default -> throw new IllegalArgumentException("Unsupported scoreboard operation: " + operation);
         }
@@ -174,7 +187,13 @@ public final class BaselineBytecodeOps {
         visitor.visitInsn(Opcodes.POP);
     }
 
-    public static void buildPromotedOperation(MethodVisitor visitor, int primaryLocal, int secondaryLocal, String operation) {
+    public static void buildPromotedOperation(
+            MethodVisitor visitor,
+            int primaryLocal,
+            int secondaryLocal,
+            String operation,
+            LoweredUnit.ArithmeticSemantics arithmeticSemantics
+    ) {
         switch (operation) {
             case "=" -> {
                 visitor.visitVarInsn(Opcodes.ILOAD, secondaryLocal);
@@ -191,14 +210,20 @@ public final class BaselineBytecodeOps {
             case "+=", "-=", "*=", "/=", "%=", "<", ">" -> {
                 visitor.visitVarInsn(Opcodes.ILOAD, primaryLocal);
                 visitor.visitVarInsn(Opcodes.ILOAD, secondaryLocal);
-                buildArithmeticOperation(visitor, operation);
+                buildArithmeticOperation(visitor, operation, arithmeticSemantics);
                 visitor.visitVarInsn(Opcodes.ISTORE, primaryLocal);
             }
             default -> throw new IllegalArgumentException("Unsupported promoted operation: " + operation);
         }
     }
 
-    public static void buildMixedOperationPrimaryPromoted(MethodVisitor visitor, int primaryLocal, int secondarySlot, String operation) {
+    public static void buildMixedOperationPrimaryPromoted(
+            MethodVisitor visitor,
+            int primaryLocal,
+            int secondarySlot,
+            String operation,
+            LoweredUnit.ArithmeticSemantics arithmeticSemantics
+    ) {
         switch (operation) {
             case "=" -> {
                 visitor.visitVarInsn(Opcodes.ALOAD, 0);
@@ -223,13 +248,19 @@ public final class BaselineBytecodeOps {
                 visitor.visitVarInsn(Opcodes.ALOAD, 0);
                 pushInt(visitor, secondarySlot);
                 visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, FRAME_INTERNAL, "getSlotValue", "(I)I", false);
-                buildArithmeticOperation(visitor, operation);
+                buildArithmeticOperation(visitor, operation, arithmeticSemantics);
                 visitor.visitVarInsn(Opcodes.ISTORE, primaryLocal);
             }
         }
     }
 
-    public static void buildMixedOperationSecondaryPromoted(MethodVisitor visitor, int primarySlot, int secondaryLocal, String operation) {
+    public static void buildMixedOperationSecondaryPromoted(
+            MethodVisitor visitor,
+            int primarySlot,
+            int secondaryLocal,
+            String operation,
+            LoweredUnit.ArithmeticSemantics arithmeticSemantics
+    ) {
         switch (operation) {
             case "=" -> {
                 visitor.visitVarInsn(Opcodes.ALOAD, 0);
@@ -256,7 +287,7 @@ public final class BaselineBytecodeOps {
                 pushInt(visitor, primarySlot);
                 visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, FRAME_INTERNAL, "getSlotValue", "(I)I", false);
                 visitor.visitVarInsn(Opcodes.ILOAD, secondaryLocal);
-                buildArithmeticOperation(visitor, operation);
+                buildArithmeticOperation(visitor, operation, arithmeticSemantics);
                 visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, FRAME_INTERNAL, "setSlotValue", "(II)V", false);
             }
         }
@@ -351,7 +382,13 @@ public final class BaselineBytecodeOps {
         );
     }
 
-    private static void buildBinaryOperation(MethodVisitor visitor, int primarySlot, int secondarySlot, String operation) {
+    private static void buildBinaryOperation(
+            MethodVisitor visitor,
+            int primarySlot,
+            int secondarySlot,
+            String operation,
+            LoweredUnit.ArithmeticSemantics arithmeticSemantics
+    ) {
         visitor.visitVarInsn(Opcodes.ALOAD, 0);
         pushInt(visitor, primarySlot);
 
@@ -364,7 +401,7 @@ public final class BaselineBytecodeOps {
         visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, FRAME_INTERNAL, "getSlotValue", "(I)I", false);
 
         switch (operation) {
-            case "+=", "-=", "*=", "/=", "%=", "<", ">" -> buildArithmeticOperation(visitor, operation);
+            case "+=", "-=", "*=", "/=", "%=", "<", ">" -> buildArithmeticOperation(visitor, operation, arithmeticSemantics);
             default -> throw new IllegalArgumentException("Unsupported binary operation: " + operation);
         }
 
@@ -421,30 +458,99 @@ public final class BaselineBytecodeOps {
         );
     }
 
-    private static void buildSafeDivide(MethodVisitor visitor, int opcode) {
-        Label divisorNonZero = new Label();
-        Label done = new Label();
-        visitor.visitInsn(Opcodes.DUP);
-        visitor.visitJumpInsn(Opcodes.IFNE, divisorNonZero);
-        visitor.visitInsn(Opcodes.POP2);
-        visitor.visitInsn(Opcodes.ICONST_0);
-        visitor.visitJumpInsn(Opcodes.GOTO, done);
-        visitor.visitLabel(divisorNonZero);
-        visitor.visitInsn(opcode);
-        visitor.visitLabel(done);
-    }
-
-    private static void buildArithmeticOperation(MethodVisitor visitor, String operation) {
+    private static void buildArithmeticOperation(
+            MethodVisitor visitor,
+            String operation,
+            LoweredUnit.ArithmeticSemantics arithmeticSemantics
+    ) {
         switch (operation) {
             case "+=" -> visitor.visitInsn(Opcodes.IADD);
             case "-=" -> visitor.visitInsn(Opcodes.ISUB);
             case "*=" -> visitor.visitInsn(Opcodes.IMUL);
-            case "/=" -> buildSafeDivide(visitor, Opcodes.IDIV);
-            case "%=" -> buildSafeDivide(visitor, Opcodes.IREM);
+            case "/=" -> buildFloorDivide(visitor, arithmeticSemantics);
+            case "%=" -> buildFloorRemainder(visitor, arithmeticSemantics);
             case "<" -> visitor.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "min", "(II)I", false);
             case ">" -> visitor.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "max", "(II)I", false);
             default -> throw new IllegalArgumentException("Unsupported arithmetic operation: " + operation);
         }
+    }
+
+    private static void buildFloorDivide(MethodVisitor visitor, LoweredUnit.ArithmeticSemantics arithmeticSemantics) {
+        storeOperands(visitor);
+        buildDivisionByZeroCheck(visitor, arithmeticSemantics);
+        visitor.visitVarInsn(Opcodes.ILOAD, 5);
+        visitor.visitVarInsn(Opcodes.ILOAD, 6);
+        visitor.visitInsn(Opcodes.IDIV);
+        if (arithmeticSemantics == LoweredUnit.ArithmeticSemantics.TRUNCATING_SAFE) {
+            return;
+        }
+        visitor.visitVarInsn(Opcodes.ISTORE, 7);
+        visitor.visitVarInsn(Opcodes.ILOAD, 5);
+        visitor.visitVarInsn(Opcodes.ILOAD, 6);
+        visitor.visitInsn(Opcodes.IXOR);
+        Label signsMatch = new Label();
+        visitor.visitJumpInsn(Opcodes.IFGE, signsMatch);
+        visitor.visitVarInsn(Opcodes.ILOAD, 5);
+        visitor.visitVarInsn(Opcodes.ILOAD, 6);
+        visitor.visitInsn(Opcodes.IREM);
+        visitor.visitJumpInsn(Opcodes.IFEQ, signsMatch);
+        visitor.visitIincInsn(7, -1);
+        visitor.visitLabel(signsMatch);
+        visitor.visitVarInsn(Opcodes.ILOAD, 7);
+    }
+
+    private static void buildFloorRemainder(MethodVisitor visitor, LoweredUnit.ArithmeticSemantics arithmeticSemantics) {
+        storeOperands(visitor);
+        buildDivisionByZeroCheck(visitor, arithmeticSemantics);
+        visitor.visitVarInsn(Opcodes.ILOAD, 5);
+        visitor.visitVarInsn(Opcodes.ILOAD, 6);
+        visitor.visitInsn(Opcodes.IREM);
+        if (arithmeticSemantics == LoweredUnit.ArithmeticSemantics.TRUNCATING_SAFE) {
+            return;
+        }
+        visitor.visitVarInsn(Opcodes.ISTORE, 7);
+        visitor.visitVarInsn(Opcodes.ILOAD, 5);
+        visitor.visitVarInsn(Opcodes.ILOAD, 6);
+        visitor.visitInsn(Opcodes.IXOR);
+        Label done = new Label();
+        visitor.visitJumpInsn(Opcodes.IFGE, done);
+        visitor.visitVarInsn(Opcodes.ILOAD, 7);
+        visitor.visitJumpInsn(Opcodes.IFEQ, done);
+        visitor.visitVarInsn(Opcodes.ILOAD, 7);
+        visitor.visitVarInsn(Opcodes.ILOAD, 6);
+        visitor.visitInsn(Opcodes.IADD);
+        visitor.visitVarInsn(Opcodes.ISTORE, 7);
+        visitor.visitLabel(done);
+        visitor.visitVarInsn(Opcodes.ILOAD, 7);
+    }
+
+    private static void storeOperands(MethodVisitor visitor) {
+        visitor.visitVarInsn(Opcodes.ISTORE, 6);
+        visitor.visitVarInsn(Opcodes.ISTORE, 5);
+    }
+
+    private static void buildDivisionByZeroCheck(MethodVisitor visitor, LoweredUnit.ArithmeticSemantics arithmeticSemantics) {
+        if (arithmeticSemantics != LoweredUnit.ArithmeticSemantics.VANILLA) {
+            return;
+        }
+        Label divisorNonZero = new Label();
+        visitor.visitVarInsn(Opcodes.ILOAD, 6);
+        visitor.visitJumpInsn(Opcodes.IFNE, divisorNonZero);
+        visitor.visitFieldInsn(
+                Opcodes.GETSTATIC,
+                Type.getInternalName(BaselineBytecodeOps.class),
+                "DIVISION_BY_ZERO_EXCEPTION",
+                Type.getDescriptor(SimpleCommandExceptionType.class)
+        );
+        visitor.visitMethodInsn(
+                Opcodes.INVOKEVIRTUAL,
+                Type.getInternalName(SimpleCommandExceptionType.class),
+                "create",
+                "()" + Type.getDescriptor(com.mojang.brigadier.exceptions.CommandSyntaxException.class),
+                false
+        );
+        visitor.visitInsn(Opcodes.ATHROW);
+        visitor.visitLabel(divisorNonZero);
     }
 
     public static void pushInt(MethodVisitor visitor, int value) {
