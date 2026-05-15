@@ -124,7 +124,6 @@ public final class BaselineCompiledFunctionRegistry {
                 new SlotPromotionPass()
         ));
 
-        Map<Identifier, BaselineBytecodeCompiler.CompiledClassData> compiledClasses = new LinkedHashMap<>();
         Map<Identifier, LoweredUnit> optimizedUnits = new LinkedHashMap<>();
         for (Map.Entry<Identifier, LoweredUnit> entry : finalLoweredUnits.entrySet()) {
             LoweredUnit optimizedUnit = passPipeline.apply(entry.getValue(), new BaselinePassContext(
@@ -135,12 +134,26 @@ public final class BaselineCompiledFunctionRegistry {
                     collectUnitSlots(requiredSlotsById.get(entry.getKey()))
             ));
             optimizedUnits.put(entry.getKey(), optimizedUnit);
+        }
+
+        Set<Identifier> neverSuspendIds = computeNeverSuspendIds(optimizedUnits);
+        Set<Identifier> invokeEffectIds = new LinkedHashSet<>();
+        for (Identifier id : neverSuspendIds) {
+            LoweredUnit unit = optimizedUnits.get(id);
+            if (unit != null && !BaselineBytecodeCompiler.shouldSplitInvoke(unit)) {
+                invokeEffectIds.add(id);
+            }
+        }
+
+        Map<Identifier, BaselineBytecodeCompiler.CompiledClassData> compiledClasses = new LinkedHashMap<>();
+        for (Map.Entry<Identifier, LoweredUnit> entry : optimizedUnits.entrySet()) {
             compiledClasses.put(entry.getKey(), BaselineBytecodeCompiler.compile(
-                    optimizedUnit,
+                    entry.getValue(),
                     internalNames,
                     callSiteCounts,
                     requiredSlotsById,
-                    classesWithSharedRequiredSlots
+                    classesWithSharedRequiredSlots,
+                    invokeEffectIds
             ));
         }
 
@@ -289,7 +302,8 @@ public final class BaselineCompiledFunctionRegistry {
                 internalNames,
                 callSiteCounts,
                 requiredSlotsById,
-                classesWithSharedRequiredSlots
+                classesWithSharedRequiredSlots,
+                Set.of()
         );
 
         GeneratedClassLoader classLoader = new GeneratedClassLoader(BaselineCompiledFunctionRegistry.class.getClassLoader());
@@ -345,7 +359,8 @@ public final class BaselineCompiledFunctionRegistry {
                 internalNames,
                 callSiteCounts,
                 requiredSlotsById,
-                classesWithSharedRequiredSlots
+                classesWithSharedRequiredSlots,
+                Set.of()
         );
 
         GeneratedClassLoader classLoader = new GeneratedClassLoader(BaselineCompiledFunctionRegistry.class.getClassLoader());
@@ -561,6 +576,62 @@ public final class BaselineCompiledFunctionRegistry {
             ));
         }
         return summaries;
+    }
+
+    private static Set<Identifier> computeNeverSuspendIds(Map<Identifier, LoweredUnit> units) {
+        Set<Identifier> candidates = new LinkedHashSet<>();
+        outer:
+        for (Map.Entry<Identifier, LoweredUnit> entry : units.entrySet()) {
+            for (LoweredUnit.LoweredBlock block : entry.getValue().blocks()) {
+                for (LoweredUnit.LoweredInstruction instruction : block.instructions()) {
+                    if (instruction instanceof LoweredUnit.PrefetchedMacroCallInstruction ||
+                        instruction instanceof LoweredUnit.Tier2MacroDispatchInstruction) {
+                        continue outer;
+                    }
+                }
+                LoweredUnit.LoweredTerminator terminator = block.terminator();
+                if (terminator instanceof LoweredUnit.SuspendActionTerminator ||
+                    terminator instanceof LoweredUnit.SuspendPrefetchedMacroTerminator ||
+                    terminator instanceof LoweredUnit.Tier2MacroDispatchTerminator) {
+                    continue outer;
+                }
+            }
+            candidates.add(entry.getKey());
+        }
+
+        boolean changed;
+        do {
+            changed = false;
+            Set<Identifier> toRemove = new LinkedHashSet<>();
+            for (Identifier id : candidates) {
+                LoweredUnit unit = units.get(id);
+                search:
+                for (LoweredUnit.LoweredBlock block : unit.blocks()) {
+                    for (LoweredUnit.LoweredInstruction instruction : block.instructions()) {
+                        if (instruction instanceof LoweredUnit.CallInstruction callInstruction) {
+                            Identifier target = callInstruction.targetFunction();
+                            if (units.containsKey(target) && !candidates.contains(target)) {
+                                toRemove.add(id);
+                                break search;
+                            }
+                        }
+                    }
+                    if (block.terminator() instanceof LoweredUnit.JumpExternalTerminator jumpExternal) {
+                        Identifier target = jumpExternal.targetFunction();
+                        if (units.containsKey(target) && !candidates.contains(target)) {
+                            toRemove.add(id);
+                            break search;
+                        }
+                    }
+                }
+            }
+            if (!toRemove.isEmpty()) {
+                candidates.removeAll(toRemove);
+                changed = true;
+            }
+        } while (changed);
+
+        return candidates;
     }
 
     private static Set<Integer> collectUnitSlots(int[] requiredSlots) {

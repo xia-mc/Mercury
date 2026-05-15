@@ -38,10 +38,11 @@ public final class BaselineBytecodeCompiler {
             Map<net.minecraft.util.Identifier, String> internalNames,
             Map<net.minecraft.util.Identifier, Integer> callSiteCounts,
             Map<net.minecraft.util.Identifier, int[]> requiredSlotsById,
-            Set<net.minecraft.util.Identifier> classesWithSharedRequiredSlots
+            Set<net.minecraft.util.Identifier> classesWithSharedRequiredSlots,
+            Set<net.minecraft.util.Identifier> invokeEffectIds
     ) {
         String internalName = internalNameFor(unit.entryId());
-        byte[] classBytes = generateClass(unit, internalName, internalNames, callSiteCounts, requiredSlotsById, classesWithSharedRequiredSlots);
+        byte[] classBytes = generateClass(unit, internalName, internalNames, callSiteCounts, requiredSlotsById, classesWithSharedRequiredSlots, invokeEffectIds);
         return new CompiledClassData(unit.entryId(), internalName, classBytes, unit.requiredSlots());
     }
 
@@ -57,7 +58,8 @@ public final class BaselineBytecodeCompiler {
             Map<net.minecraft.util.Identifier, String> internalNames,
             Map<net.minecraft.util.Identifier, Integer> callSiteCounts,
             Map<net.minecraft.util.Identifier, int[]> requiredSlotsById,
-            Set<net.minecraft.util.Identifier> classesWithSharedRequiredSlots
+            Set<net.minecraft.util.Identifier> classesWithSharedRequiredSlots,
+            Set<net.minecraft.util.Identifier> invokeEffectIds
     ) {
         Map<Integer, SpecializedFieldSpec> specializedFields = collectSpecializedFields(unit);
         Map<String, Tier2DispatchFieldSpec> tier2DispatchFields = collectTier2DispatchFields(unit);
@@ -79,7 +81,10 @@ public final class BaselineBytecodeCompiler {
         if (emitRequiredSlotsField || !specializedFields.isEmpty() || !tier2DispatchFields.isEmpty()) {
             emitClassInitializer(writer, internalName, unit.requiredSlots(), emitRequiredSlotsField, specializedFields, tier2DispatchFields);
         }
-        emitInvoke(writer, unit, internalNames, callSiteCounts, requiredSlotsById, specializedFields, tier2DispatchFields);
+        emitInvoke(writer, unit, internalNames, callSiteCounts, requiredSlotsById, specializedFields, tier2DispatchFields, invokeEffectIds);
+        if (!shouldSplitInvoke(unit) && invokeEffectIds.contains(unit.entryId())) {
+            emitInvokeEffect(writer, unit, internalNames, callSiteCounts, requiredSlotsById, specializedFields, tier2DispatchFields, invokeEffectIds);
+        }
 
         writer.visitEnd();
         return writer.toByteArray();
@@ -145,10 +150,11 @@ public final class BaselineBytecodeCompiler {
             Map<net.minecraft.util.Identifier, Integer> callSiteCounts,
             Map<net.minecraft.util.Identifier, int[]> requiredSlotsById,
             Map<Integer, SpecializedFieldSpec> specializedFields,
-            Map<String, Tier2DispatchFieldSpec> tier2DispatchFields
+            Map<String, Tier2DispatchFieldSpec> tier2DispatchFields,
+            Set<net.minecraft.util.Identifier> invokeEffectIds
     ) {
         if (shouldSplitInvoke(unit)) {
-            emitSplitInvoke(writer, unit, internalNames, callSiteCounts, requiredSlotsById, specializedFields, tier2DispatchFields);
+            emitSplitInvoke(writer, unit, internalNames, callSiteCounts, requiredSlotsById, specializedFields, tier2DispatchFields, invokeEffectIds);
             return;
         }
 
@@ -180,7 +186,7 @@ public final class BaselineBytecodeCompiler {
 
         for (int i = 0; i < unit.blocks().size(); i++) {
             visitor.visitLabel(stateLabels[i]);
-            emitBlock(visitor, unit, unit.blocks().get(i), loopStart, internalNames, callSiteCounts, requiredSlotsById, specializedFields, tier2DispatchFields, internalNameFor(unit.entryId()));
+            emitBlock(visitor, unit, unit.blocks().get(i), loopStart, internalNames, callSiteCounts, requiredSlotsById, specializedFields, tier2DispatchFields, internalNameFor(unit.entryId()), invokeEffectIds, false);
         }
 
         visitor.visitLabel(defaultLabel);
@@ -190,7 +196,56 @@ public final class BaselineBytecodeCompiler {
         visitor.visitEnd();
     }
 
-    private static boolean shouldSplitInvoke(LoweredUnit unit) {
+    private static void emitInvokeEffect(
+            ClassWriter writer,
+            LoweredUnit unit,
+            Map<net.minecraft.util.Identifier, String> internalNames,
+            Map<net.minecraft.util.Identifier, Integer> callSiteCounts,
+            Map<net.minecraft.util.Identifier, int[]> requiredSlotsById,
+            Map<Integer, SpecializedFieldSpec> specializedFields,
+            Map<String, Tier2DispatchFieldSpec> tier2DispatchFields,
+            Set<net.minecraft.util.Identifier> invokeEffectIds
+    ) {
+        String descriptor = "("
+                + EXECUTION_FRAME_DESC
+                + "Ljava/lang/Object;"
+                + Type.getDescriptor(net.minecraft.command.CommandExecutionContext.class)
+                + Type.getDescriptor(net.minecraft.command.Frame.class)
+                + ")V";
+        MethodVisitor visitor = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "invokeEffect", descriptor, null, new String[]{"java/lang/Throwable"});
+        visitor.visitCode();
+
+        for (Map.Entry<Integer, Integer> promoted : unit.promotedSlotLocals().entrySet()) {
+            BaselineBytecodeOps.buildInitializePromotedSlot(visitor, promoted.getKey(), promoted.getValue());
+        }
+
+        BaselineBytecodeOps.pushInt(visitor, unit.entryIndex());
+        visitor.visitVarInsn(Opcodes.ISTORE, 4);
+
+        Label loopStart = new Label();
+        Label defaultLabel = new Label();
+        Label[] stateLabels = new Label[unit.blocks().size()];
+        for (int i = 0; i < stateLabels.length; i++) {
+            stateLabels[i] = new Label();
+        }
+
+        visitor.visitLabel(loopStart);
+        visitor.visitVarInsn(Opcodes.ILOAD, 4);
+        visitor.visitTableSwitchInsn(0, stateLabels.length - 1, defaultLabel, stateLabels);
+
+        for (int i = 0; i < unit.blocks().size(); i++) {
+            visitor.visitLabel(stateLabels[i]);
+            emitBlock(visitor, unit, unit.blocks().get(i), loopStart, internalNames, callSiteCounts, requiredSlotsById, specializedFields, tier2DispatchFields, internalNameFor(unit.entryId()), invokeEffectIds, true);
+        }
+
+        visitor.visitLabel(defaultLabel);
+        spillAllPromoted(visitor, unit);
+        visitor.visitInsn(Opcodes.RETURN);
+        visitor.visitMaxs(0, 0);
+        visitor.visitEnd();
+    }
+
+    public static boolean shouldSplitInvoke(LoweredUnit unit) {
         return estimateInvokeSize(unit) > SPLIT_METHOD_BUDGET;
     }
 
@@ -262,7 +317,8 @@ public final class BaselineBytecodeCompiler {
             Map<net.minecraft.util.Identifier, Integer> callSiteCounts,
             Map<net.minecraft.util.Identifier, int[]> requiredSlotsById,
             Map<Integer, SpecializedFieldSpec> specializedFields,
-            Map<String, Tier2DispatchFieldSpec> tier2DispatchFields
+            Map<String, Tier2DispatchFieldSpec> tier2DispatchFields,
+            Set<net.minecraft.util.Identifier> invokeEffectIds
     ) {
         List<InvokeChunk> chunks = splitIntoChunks(unit);
         int[] blockEntryChunks = blockEntryChunks(unit, chunks);
@@ -294,7 +350,7 @@ public final class BaselineBytecodeCompiler {
         visitor.visitEnd();
 
         for (int i = 0; i < chunks.size(); i++) {
-            emitSplitChunk(writer, ownerInternalName, unit, chunks, i, blockEntryChunks, helperDescriptor, internalNames, callSiteCounts, requiredSlotsById, specializedFields, tier2DispatchFields);
+            emitSplitChunk(writer, ownerInternalName, unit, chunks, i, blockEntryChunks, helperDescriptor, internalNames, callSiteCounts, requiredSlotsById, specializedFields, tier2DispatchFields, invokeEffectIds);
         }
     }
 
@@ -369,21 +425,22 @@ public final class BaselineBytecodeCompiler {
             Map<net.minecraft.util.Identifier, Integer> callSiteCounts,
             Map<net.minecraft.util.Identifier, int[]> requiredSlotsById,
             Map<Integer, SpecializedFieldSpec> specializedFields,
-            Map<String, Tier2DispatchFieldSpec> tier2DispatchFields
+            Map<String, Tier2DispatchFieldSpec> tier2DispatchFields,
+            Set<net.minecraft.util.Identifier> invokeEffectIds
     ) {
         InvokeChunk chunk = chunks.get(chunkIndex);
         LoweredUnit.LoweredBlock block = unit.blocks().get(chunk.blockIndex());
         MethodVisitor visitor = writer.visitMethod(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC, chunkName(chunkIndex), helperDescriptor, null, new String[]{"java/lang/Throwable"});
         visitor.visitCode();
         for (int i = chunk.startInstruction(); i < chunk.endInstruction(); i++) {
-            emitInstruction(visitor, unit, block.instructions().get(i), internalNames, callSiteCounts, requiredSlotsById, specializedFields, tier2DispatchFields, ownerInternalName);
+            emitInstruction(visitor, unit, block.instructions().get(i), internalNames, callSiteCounts, requiredSlotsById, specializedFields, tier2DispatchFields, ownerInternalName, invokeEffectIds);
         }
 
         boolean hasNextChunkInBlock = chunkIndex + 1 < chunks.size() && chunks.get(chunkIndex + 1).blockIndex() == chunk.blockIndex();
         if (hasNextChunkInBlock) {
             emitTailCallSplitChunk(visitor, ownerInternalName, helperDescriptor, chunkName(chunkIndex + 1), unit, chunk.blockIndex());
         } else {
-            emitSplitTerminator(visitor, unit, block.terminator(), ownerInternalName, helperDescriptor, blockEntryChunks, internalNames, callSiteCounts, requiredSlotsById, tier2DispatchFields);
+            emitSplitTerminator(visitor, unit, block.terminator(), ownerInternalName, helperDescriptor, blockEntryChunks, internalNames, callSiteCounts, requiredSlotsById, tier2DispatchFields, invokeEffectIds);
         }
         visitor.visitMaxs(0, 0);
         visitor.visitEnd();
@@ -421,7 +478,8 @@ public final class BaselineBytecodeCompiler {
             Map<net.minecraft.util.Identifier, int[]> requiredSlotsById,
             Map<Integer, SpecializedFieldSpec> specializedFields,
             Map<String, Tier2DispatchFieldSpec> tier2DispatchFields,
-            String ownerInternalName
+            String ownerInternalName,
+            Set<net.minecraft.util.Identifier> invokeEffectIds
     ) {
         switch (instruction) {
             case LoweredUnit.SetConstInstruction setConst ->
@@ -435,7 +493,7 @@ public final class BaselineBytecodeCompiler {
             case LoweredUnit.OperationInstruction operation ->
                     emitOperation(visitor, unit, operation.primarySlot(), operation.secondarySlot(), operation.operation(), operation.arithmeticSemantics());
             case LoweredUnit.CallInstruction call ->
-                    emitDirectInvoke(visitor, unit, call.targetFunction(), call.bindingId(), call.spillBeforeSlots(), call.reloadAfterSlots(), internalNames, callSiteCounts, requiredSlotsById, false);
+                    emitDirectInvoke(visitor, unit, call.targetFunction(), call.bindingId(), call.spillBeforeSlots(), call.reloadAfterSlots(), internalNames, callSiteCounts, requiredSlotsById, false, invokeEffectIds);
             case LoweredUnit.ReflectiveBridgeInstruction reflectiveBridge ->
                     emitReflectiveBridge(visitor, unit, reflectiveBridge.bindingId(), reflectiveBridge.spillBeforeSlots(), reflectiveBridge.reloadAfterSlots());
             case LoweredUnit.ActionBridgeInstruction actionBridge ->
@@ -461,7 +519,8 @@ public final class BaselineBytecodeCompiler {
             Map<net.minecraft.util.Identifier, String> internalNames,
             Map<net.minecraft.util.Identifier, Integer> callSiteCounts,
             Map<net.minecraft.util.Identifier, int[]> requiredSlotsById,
-            Map<String, Tier2DispatchFieldSpec> tier2DispatchFields
+            Map<String, Tier2DispatchFieldSpec> tier2DispatchFields,
+            Set<net.minecraft.util.Identifier> invokeEffectIds
     ) {
         switch (terminator) {
             case LoweredUnit.CompleteTerminator ignored -> {
@@ -476,7 +535,7 @@ public final class BaselineBytecodeCompiler {
                     emitTailCallSplitChunk(visitor, ownerInternalName, helperDescriptor, chunkName(blockEntryChunks[jumpLocal.targetBlockIndex()]), unit, jumpLocal.targetBlockIndex());
             case LoweredUnit.JumpExternalTerminator jumpExternal -> {
                 spillAllPromoted(visitor, unit);
-                emitDirectInvoke(visitor, unit, jumpExternal.targetFunction(), jumpExternal.bindingId(), jumpExternal.spillBeforeSlots(), new int[0], internalNames, callSiteCounts, requiredSlotsById, true);
+                emitDirectInvoke(visitor, unit, jumpExternal.targetFunction(), jumpExternal.bindingId(), jumpExternal.spillBeforeSlots(), new int[0], internalNames, callSiteCounts, requiredSlotsById, true, invokeEffectIds);
             }
             case LoweredUnit.SuspendActionTerminator suspendAction -> {
                 spillPromotedSlots(visitor, unit, suspendAction.spillBeforeSlots());
@@ -541,7 +600,9 @@ public final class BaselineBytecodeCompiler {
             Map<net.minecraft.util.Identifier, int[]> requiredSlotsById,
             Map<Integer, SpecializedFieldSpec> specializedFields,
             Map<String, Tier2DispatchFieldSpec> tier2DispatchFields,
-            String ownerInternalName
+            String ownerInternalName,
+            Set<net.minecraft.util.Identifier> invokeEffectIds,
+            boolean effectMode
     ) {
         for (LoweredUnit.LoweredInstruction instruction : block.instructions()) {
             switch (instruction) {
@@ -556,7 +617,7 @@ public final class BaselineBytecodeCompiler {
                 case LoweredUnit.OperationInstruction operation ->
                         emitOperation(visitor, unit, operation.primarySlot(), operation.secondarySlot(), operation.operation(), operation.arithmeticSemantics());
                 case LoweredUnit.CallInstruction call ->
-                        emitDirectInvoke(visitor, unit, call.targetFunction(), call.bindingId(), call.spillBeforeSlots(), call.reloadAfterSlots(), internalNames, callSiteCounts, requiredSlotsById, false);
+                        emitDirectInvoke(visitor, unit, call.targetFunction(), call.bindingId(), call.spillBeforeSlots(), call.reloadAfterSlots(), internalNames, callSiteCounts, requiredSlotsById, false, invokeEffectIds);
                 case LoweredUnit.ReflectiveBridgeInstruction reflectiveBridge ->
                         emitReflectiveBridge(visitor, unit, reflectiveBridge.bindingId(), reflectiveBridge.spillBeforeSlots(), reflectiveBridge.reloadAfterSlots());
                 case LoweredUnit.ActionBridgeInstruction actionBridge ->
@@ -572,34 +633,58 @@ public final class BaselineBytecodeCompiler {
             }
         }
 
-        switch (block.terminator()) {
-            case LoweredUnit.CompleteTerminator ignored -> {
-                spillAllPromoted(visitor, unit);
-                BaselineBytecodeOps.buildCompleted(visitor);
+        if (effectMode) {
+            switch (block.terminator()) {
+                case LoweredUnit.CompleteTerminator ignored -> {
+                    spillAllPromoted(visitor, unit);
+                    visitor.visitInsn(Opcodes.RETURN);
+                }
+                case LoweredUnit.ReturnValueTerminator ignored -> {
+                    spillAllPromoted(visitor, unit);
+                    visitor.visitInsn(Opcodes.RETURN);
+                }
+                case LoweredUnit.JumpLocalTerminator jumpLocal -> {
+                    BaselineBytecodeOps.pushInt(visitor, jumpLocal.targetBlockIndex());
+                    visitor.visitVarInsn(Opcodes.ISTORE, 4);
+                    visitor.visitJumpInsn(Opcodes.GOTO, loopStart);
+                }
+                case LoweredUnit.JumpExternalTerminator jumpExternal -> {
+                    spillAllPromoted(visitor, unit);
+                    emitDirectInvoke(visitor, unit, jumpExternal.targetFunction(), jumpExternal.bindingId(), jumpExternal.spillBeforeSlots(), new int[0], internalNames, callSiteCounts, requiredSlotsById, false, invokeEffectIds);
+                    visitor.visitInsn(Opcodes.RETURN);
+                }
+                default -> throw new IllegalStateException("Unexpected terminator in never-suspend function: " + block.terminator().getClass().getSimpleName());
             }
-            case LoweredUnit.ReturnValueTerminator returnValue -> {
-                spillAllPromoted(visitor, unit);
-                BaselineBytecodeOps.buildReturnValue(visitor, returnValue.returnValue());
+        } else {
+            switch (block.terminator()) {
+                case LoweredUnit.CompleteTerminator ignored -> {
+                    spillAllPromoted(visitor, unit);
+                    BaselineBytecodeOps.buildCompleted(visitor);
+                }
+                case LoweredUnit.ReturnValueTerminator returnValue -> {
+                    spillAllPromoted(visitor, unit);
+                    BaselineBytecodeOps.buildReturnValue(visitor, returnValue.returnValue());
+                }
+                case LoweredUnit.JumpLocalTerminator jumpLocal -> {
+                    BaselineBytecodeOps.pushInt(visitor, jumpLocal.targetBlockIndex());
+                    visitor.visitVarInsn(Opcodes.ISTORE, 4);
+                    visitor.visitJumpInsn(Opcodes.GOTO, loopStart);
+                }
+                case LoweredUnit.JumpExternalTerminator jumpExternal -> {
+                    spillAllPromoted(visitor, unit);
+                    emitDirectInvoke(visitor, unit, jumpExternal.targetFunction(), jumpExternal.bindingId(), jumpExternal.spillBeforeSlots(), new int[0], internalNames, callSiteCounts, requiredSlotsById, true, invokeEffectIds);
+                }
+                case LoweredUnit.SuspendActionTerminator suspendAction -> {
+                    spillPromotedSlots(visitor, unit, suspendAction.spillBeforeSlots());
+                    BaselineBytecodeOps.buildSuspend(visitor, suspendAction.bindingId(), suspendAction.continuationBlockIndex());
+                }
+                case LoweredUnit.SuspendPrefetchedMacroTerminator suspendPrefetchedMacro -> {
+                    spillPromotedSlots(visitor, unit, suspendPrefetchedMacro.spillBeforeSlots());
+                    BaselineBytecodeOps.buildSuspendPrefetchedMacro(visitor, suspendPrefetchedMacro.planId(), suspendPrefetchedMacro.continuationBlockIndex());
+                }
+                case LoweredUnit.Tier2MacroDispatchTerminator tier2MacroDispatchTerminator ->
+                        emitTier2MacroDispatchTerminator(visitor, unit, loopStart, tier2MacroDispatchTerminator, tier2DispatchFields, ownerInternalName);
             }
-            case LoweredUnit.JumpLocalTerminator jumpLocal -> {
-                BaselineBytecodeOps.pushInt(visitor, jumpLocal.targetBlockIndex());
-                visitor.visitVarInsn(Opcodes.ISTORE, 4);
-                visitor.visitJumpInsn(Opcodes.GOTO, loopStart);
-            }
-            case LoweredUnit.JumpExternalTerminator jumpExternal -> {
-                spillAllPromoted(visitor, unit);
-                emitDirectInvoke(visitor, unit, jumpExternal.targetFunction(), jumpExternal.bindingId(), jumpExternal.spillBeforeSlots(), new int[0], internalNames, callSiteCounts, requiredSlotsById, true);
-            }
-            case LoweredUnit.SuspendActionTerminator suspendAction -> {
-                spillPromotedSlots(visitor, unit, suspendAction.spillBeforeSlots());
-                BaselineBytecodeOps.buildSuspend(visitor, suspendAction.bindingId(), suspendAction.continuationBlockIndex());
-            }
-            case LoweredUnit.SuspendPrefetchedMacroTerminator suspendPrefetchedMacro -> {
-                spillPromotedSlots(visitor, unit, suspendPrefetchedMacro.spillBeforeSlots());
-                BaselineBytecodeOps.buildSuspendPrefetchedMacro(visitor, suspendPrefetchedMacro.planId(), suspendPrefetchedMacro.continuationBlockIndex());
-            }
-            case LoweredUnit.Tier2MacroDispatchTerminator tier2MacroDispatchTerminator ->
-                    emitTier2MacroDispatchTerminator(visitor, unit, loopStart, tier2MacroDispatchTerminator, tier2DispatchFields, ownerInternalName);
         }
     }
 
@@ -656,7 +741,8 @@ public final class BaselineBytecodeCompiler {
             Map<net.minecraft.util.Identifier, String> internalNames,
             Map<net.minecraft.util.Identifier, Integer> callSiteCounts,
             Map<net.minecraft.util.Identifier, int[]> requiredSlotsById,
-            boolean returnOutcome
+            boolean returnOutcome,
+            Set<net.minecraft.util.Identifier> invokeEffectIds
     ) {
         spillPromotedSlots(visitor, unit, spillBeforeSlots);
 
@@ -680,6 +766,11 @@ public final class BaselineBytecodeCompiler {
             BaselineBytecodeOps.buildInlineRequiredSlots(visitor, requiredSlots);
         } else {
             BaselineBytecodeOps.buildEnsureLoadedFromStaticField(visitor, targetInternalName, REQUIRED_SLOTS_FIELD);
+        }
+        if (!returnOutcome && invokeEffectIds.contains(targetFunction)) {
+            BaselineBytecodeOps.buildStaticInvokeEffect(visitor, targetInternalName);
+            reloadPromotedSlots(visitor, unit, reloadAfterSlots);
+            return;
         }
         BaselineBytecodeOps.buildStaticInvoke(visitor, targetInternalName, returnOutcome);
         if (!returnOutcome) {

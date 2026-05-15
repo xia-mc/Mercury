@@ -275,8 +275,10 @@ public final class BaselineExecutionEngine {
             int bindingId,
             int nextState
     ) {
+        public static final ExecutionOutcome COMPLETED = new ExecutionOutcome(Mode.COMPLETE, 0, -1, -1);
+
         public static ExecutionOutcome completed() {
-            return new ExecutionOutcome(Mode.COMPLETE, 0, -1, -1);
+            return COMPLETED;
         }
 
         public static ExecutionOutcome returnValue(int returnValue) {

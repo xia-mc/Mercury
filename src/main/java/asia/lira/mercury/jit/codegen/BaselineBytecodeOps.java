@@ -102,6 +102,20 @@ public final class BaselineBytecodeOps {
         }
     }
 
+    public static void buildStaticInvokeEffect(MethodVisitor visitor, String targetInternalName) {
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        visitor.visitVarInsn(Opcodes.ALOAD, 1);
+        visitor.visitVarInsn(Opcodes.ALOAD, 2);
+        visitor.visitVarInsn(Opcodes.ALOAD, 3);
+        visitor.visitMethodInsn(
+                Opcodes.INVOKESTATIC,
+                targetInternalName,
+                "invokeEffect",
+                "(L" + FRAME_INTERNAL + ";Ljava/lang/Object;" + CONTEXT_DESC + COMMAND_FRAME_DESC + ")V",
+                false
+        );
+    }
+
     public static void buildStaticInvoke(MethodVisitor visitor, String targetInternalName, boolean returnOutcome) {
         visitor.visitVarInsn(Opcodes.ALOAD, 0);
         visitor.visitVarInsn(Opcodes.ALOAD, 1);
@@ -305,13 +319,7 @@ public final class BaselineBytecodeOps {
     }
 
     public static void buildCompleted(MethodVisitor visitor) {
-        visitor.visitTypeInsn(Opcodes.NEW, OUTCOME_INTERNAL);
-        visitor.visitInsn(Opcodes.DUP);
-        visitor.visitFieldInsn(Opcodes.GETSTATIC, OUTCOME_MODE_INTERNAL, "COMPLETE", "L" + OUTCOME_MODE_INTERNAL + ";");
-        visitor.visitInsn(Opcodes.ICONST_0);
-        visitor.visitInsn(Opcodes.ICONST_M1);
-        visitor.visitInsn(Opcodes.ICONST_M1);
-        visitor.visitMethodInsn(Opcodes.INVOKESPECIAL, OUTCOME_INTERNAL, "<init>", "(L" + OUTCOME_MODE_INTERNAL + ";III)V", false);
+        visitor.visitFieldInsn(Opcodes.GETSTATIC, OUTCOME_INTERNAL, "COMPLETED", OUTCOME_DESC);
         visitor.visitInsn(Opcodes.ARETURN);
     }
 

@@ -28,6 +28,7 @@ public final class BaselineBytecodeCompilerRegressionTest {
                 Map.of(),
                 Map.of(),
                 Map.of(unit.entryId(), unit.requiredSlots()),
+                Set.of(),
                 Set.of()
         );
 
@@ -47,6 +48,7 @@ public final class BaselineBytecodeCompilerRegressionTest {
                 Map.of(),
                 Map.of(),
                 Map.of(unit.entryId(), unit.requiredSlots()),
+                Set.of(),
                 Set.of()
         );
 
