@@ -49,6 +49,16 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 }
 
+tasks.register("baselineBytecodeRegressionTest", JavaExec) {
+    group = "verification"
+    description = "Runs focused regression checks for Mercury baseline bytecode generation."
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = "asia.lira.mercury.jit.codegen.BaselineBytecodeCompilerRegressionTest"
+}
+
+check.dependsOn baselineBytecodeRegressionTest
+
 processResources {
     inputs.property "version", project.version
     inputs.property "minecraft_version", project.minecraft_version
