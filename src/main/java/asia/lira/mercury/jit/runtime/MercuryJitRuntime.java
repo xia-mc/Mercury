@@ -1,7 +1,7 @@
 package asia.lira.mercury.jit.runtime;
 
 public final class MercuryJitRuntime {
-    private static volatile boolean enabled = true;
+    private static volatile boolean enabled = false;
 
     private MercuryJitRuntime() {
     }

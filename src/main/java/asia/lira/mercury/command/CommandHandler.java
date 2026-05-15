@@ -264,7 +264,7 @@ public class CommandHandler implements CommandRegistrationCallback {
         );
 
         dispatcher.register(literal("syscall")
-                .requires(source -> source.hasPermissionLevel(2) && !source.hasPermissionLevel(3) && source.isSilent())
+                .requires(source -> source.hasPermissionLevel(2))
                 .executes(context -> {
                     ServerScoreboard scoreboard = Mercury.SERVER.getScoreboard();
                     ScoreboardObjective vmRegs = scoreboard.getNullableObjective("vm_regs");

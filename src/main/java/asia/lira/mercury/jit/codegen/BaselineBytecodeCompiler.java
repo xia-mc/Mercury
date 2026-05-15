@@ -349,7 +349,10 @@ public final class BaselineBytecodeCompiler {
         int[] blockEntryChunks = new int[unit.blocks().size()];
         java.util.Arrays.fill(blockEntryChunks, -1);
         for (int i = 0; i < chunks.size(); i++) {
-            blockEntryChunks[chunks.get(i).blockIndex()] = i;
+            int blockIndex = chunks.get(i).blockIndex();
+            if (blockEntryChunks[blockIndex] == -1) {
+                blockEntryChunks[blockIndex] = i;
+            }
         }
         return blockEntryChunks;
     }

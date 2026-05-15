@@ -35,6 +35,9 @@ public final class BaselineLowerer {
         List<LoweredUnit.LoweredInstruction> currentInstructions = new ArrayList<>();
 
         for (int i = 0; i < program.instructions().size(); i++) {
+            if (currentInstructions == null) {
+                break;
+            }
             BaselineInstruction instruction = program.instructions().get(i);
             boolean hasRemaining = i < program.instructions().size() - 1;
             switch (instruction.opCode()) {
