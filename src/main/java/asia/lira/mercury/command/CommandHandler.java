@@ -8,6 +8,7 @@ import asia.lira.mercury.ir.FunctionIrExporter;
 import asia.lira.mercury.ir.FunctionIrRegistry;
 import asia.lira.mercury.jit.dump.BaselineClassExporter;
 import asia.lira.mercury.jit.dump.JitPreparationExporter;
+import asia.lira.mercury.jit.runtime.BaselineExecutionEngine;
 import asia.lira.mercury.jit.runtime.MercuryJitRuntime;
 import asia.lira.mercury.jit.runtime.SynchronizationRuntime;
 import com.mojang.brigadier.CommandDispatcher;
@@ -200,6 +201,15 @@ public class CommandHandler implements CommandRegistrationCallback {
         }
     }
 
+    private static int showStats(ServerCommandSource source) {
+        long hits = BaselineExecutionEngine.DIRECT_CALLD_HITS.get();
+        long fallbacks = BaselineExecutionEngine.DIRECT_CALLD_FALLBACKS.get();
+        source.sendFeedback(() -> Text.literal(
+                "directCalld: hits=" + hits + " fallbacks=" + fallbacks
+        ), false);
+        return 1;
+    }
+
     private static int switchJit(ServerCommandSource source, boolean enabled) {
         if (SynchronizationRuntime.getInstance().hasActiveFrames()) {
             source.sendError(Text.literal(
@@ -260,6 +270,9 @@ public class CommandHandler implements CommandRegistrationCallback {
                         .then(literal("disable")
                                 .executes(context -> switchJit(context.getSource(), false))
                         )
+                )
+                .then(literal("stats")
+                        .executes(context -> showStats(context.getSource()))
                 )
         );
 

@@ -24,7 +24,8 @@ public record MacroPrefetchPlan(
         NbtPathArgumentType.NbtPath storagePath,
         List<String> argumentNames,
         Map<String, String> observedFieldSources,
-        String generatedMacroSummary
+        String generatedMacroSummary,
+        int functionDispatchArgIndex
 ) {
     public MacroPrefetchPlan {
         argumentNames = List.copyOf(argumentNames);

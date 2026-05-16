@@ -1,6 +1,10 @@
 package asia.lira.mercury.jit.runtime;
 
 import asia.lira.mercury.Mercury;
+import asia.lira.mercury.impl.FastMacro;
+import asia.lira.mercury.impl.cache.MacroPrefetchLine;
+import asia.lira.mercury.impl.cache.MacroPrefetchPlan;
+import asia.lira.mercury.impl.cache.MacroPrefetchRegistry;
 import asia.lira.mercury.impl.cache.MacroPrefetchRuntime;
 import asia.lira.mercury.jit.registry.BaselineCompiledFunctionRegistry;
 import asia.lira.mercury.jit.registry.JitPreparationRegistry;
@@ -26,8 +30,13 @@ import net.minecraft.server.function.MacroException;
 import net.minecraft.server.function.Procedure;
 import net.minecraft.util.Identifier;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 @SuppressWarnings({"unused", "UnusedReturnValue"})
 public final class BaselineExecutionEngine {
+    public static final AtomicLong DIRECT_CALLD_HITS = new AtomicLong();
+    public static final AtomicLong DIRECT_CALLD_FALLBACKS = new AtomicLong();
+
     private BaselineExecutionEngine() {
     }
 
@@ -66,6 +75,43 @@ public final class BaselineExecutionEngine {
         for (int slotId : slotIds) {
             readSlot(frame, slotId);
         }
+    }
+
+    public static boolean tryDirectCalld(int planId, ExecutionFrame frame, Object source,
+            CommandExecutionContext<?> context, Frame commandFrame) throws Throwable {
+        MacroPrefetchPlan plan = MacroPrefetchRegistry.getInstance().plan(planId);
+        if (plan == null || plan.functionDispatchArgIndex() < 0) {
+            DIRECT_CALLD_FALLBACKS.incrementAndGet();
+            return false;
+        }
+        MacroPrefetchLine line = MacroPrefetchRegistry.getInstance().line(planId);
+        if (line == null || !line.isValid()) {
+            DIRECT_CALLD_FALLBACKS.incrementAndGet();
+            return false;
+        }
+        NbtElement argValue = line.valueAt(plan.functionDispatchArgIndex());
+        if (argValue == null) {
+            DIRECT_CALLD_FALLBACKS.incrementAndGet();
+            return false;
+        }
+        String idStr = FastMacro.toString(argValue);
+        Identifier targetId;
+        try {
+            targetId = Identifier.of(idStr);
+        } catch (Exception ignored) {
+            DIRECT_CALLD_FALLBACKS.incrementAndGet();
+            return false;
+        }
+        BaselineCompiledFunctionRegistry.CompiledArtifact artifact =
+                BaselineCompiledFunctionRegistry.getInstance().getArtifact(targetId);
+        if (artifact == null || artifact.invokeEffectHandle() == null) {
+            DIRECT_CALLD_FALLBACKS.incrementAndGet();
+            return false;
+        }
+        ensureLoaded(frame, artifact.requiredSlots());
+        artifact.invokeEffectHandle().invoke(frame, source, context, commandFrame);
+        DIRECT_CALLD_HITS.incrementAndGet();
+        return true;
     }
 
     public static int readSlot(ExecutionFrame frame, int slotId) {

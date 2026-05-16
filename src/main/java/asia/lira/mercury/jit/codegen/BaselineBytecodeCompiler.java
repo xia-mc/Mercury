@@ -679,8 +679,24 @@ public final class BaselineBytecodeCompiler {
                     BaselineBytecodeOps.buildSuspend(visitor, suspendAction.bindingId(), suspendAction.continuationBlockIndex());
                 }
                 case LoweredUnit.SuspendPrefetchedMacroTerminator suspendPrefetchedMacro -> {
-                    spillPromotedSlots(visitor, unit, suspendPrefetchedMacro.spillBeforeSlots());
-                    BaselineBytecodeOps.buildSuspendPrefetchedMacro(visitor, suspendPrefetchedMacro.planId(), suspendPrefetchedMacro.continuationBlockIndex());
+                    asia.lira.mercury.impl.cache.MacroPrefetchPlan plan =
+                            asia.lira.mercury.impl.cache.MacroPrefetchRegistry.getInstance()
+                                    .plan(suspendPrefetchedMacro.planId());
+                    if (plan != null && plan.functionDispatchArgIndex() >= 0) {
+                        spillAllPromoted(visitor, unit);
+                        Label suspendLabel = new Label();
+                        BaselineBytecodeOps.buildTryDirectCalld(visitor, suspendPrefetchedMacro.planId());
+                        visitor.visitJumpInsn(Opcodes.IFEQ, suspendLabel);
+                        reloadAllPromotedSlots(visitor, unit);
+                        BaselineBytecodeOps.pushInt(visitor, suspendPrefetchedMacro.continuationBlockIndex());
+                        visitor.visitVarInsn(Opcodes.ISTORE, 4);
+                        visitor.visitJumpInsn(Opcodes.GOTO, loopStart);
+                        visitor.visitLabel(suspendLabel);
+                        BaselineBytecodeOps.buildSuspendPrefetchedMacro(visitor, suspendPrefetchedMacro.planId(), suspendPrefetchedMacro.continuationBlockIndex());
+                    } else {
+                        spillPromotedSlots(visitor, unit, suspendPrefetchedMacro.spillBeforeSlots());
+                        BaselineBytecodeOps.buildSuspendPrefetchedMacro(visitor, suspendPrefetchedMacro.planId(), suspendPrefetchedMacro.continuationBlockIndex());
+                    }
                 }
                 case LoweredUnit.Tier2MacroDispatchTerminator tier2MacroDispatchTerminator ->
                         emitTier2MacroDispatchTerminator(visitor, unit, loopStart, tier2MacroDispatchTerminator, tier2DispatchFields, ownerInternalName);
@@ -761,11 +777,13 @@ public final class BaselineBytecodeCompiler {
         }
 
         int[] requiredSlots = requiredSlotsById.getOrDefault(targetFunction, new int[0]);
-        int callSites = callSiteCounts.getOrDefault(targetFunction, 0);
-        if (shouldInlineRequiredSlots(requiredSlots.length, callSites)) {
-            BaselineBytecodeOps.buildInlineRequiredSlots(visitor, requiredSlots);
-        } else {
-            BaselineBytecodeOps.buildEnsureLoadedFromStaticField(visitor, targetInternalName, REQUIRED_SLOTS_FIELD);
+        if (requiredSlots.length > 0 && !callerCoversCalleeSlots(unit, requiredSlots)) {
+            int callSites = callSiteCounts.getOrDefault(targetFunction, 0);
+            if (shouldInlineRequiredSlots(requiredSlots.length, callSites)) {
+                BaselineBytecodeOps.buildInlineRequiredSlots(visitor, requiredSlots);
+            } else {
+                BaselineBytecodeOps.buildEnsureLoadedFromStaticField(visitor, targetInternalName, REQUIRED_SLOTS_FIELD);
+            }
         }
         if (!returnOutcome && invokeEffectIds.contains(targetFunction)) {
             BaselineBytecodeOps.buildStaticInvokeEffect(visitor, targetInternalName);
@@ -996,6 +1014,33 @@ public final class BaselineBytecodeCompiler {
                 BaselineBytecodeOps.buildReloadPromotedSlot(visitor, slotId, unit.localIndexFor(slotId));
             }
         }
+    }
+
+    private static void reloadAllPromotedSlots(MethodVisitor visitor, LoweredUnit unit) {
+        for (Map.Entry<Integer, Integer> entry : unit.promotedSlotLocals().entrySet()) {
+            BaselineBytecodeOps.buildReloadPromotedSlot(visitor, entry.getKey(), entry.getValue());
+        }
+    }
+
+    private static boolean callerCoversCalleeSlots(LoweredUnit caller, int[] calleeRequired) {
+        java.util.Set<Integer> callerSlots = new java.util.HashSet<>();
+        for (int s : caller.requiredSlots()) callerSlots.add(s);
+        for (int s : calleeRequired) {
+            if (!callerSlots.contains(s)) return false;
+        }
+        java.util.Set<Integer> calleeSlotSet = new java.util.HashSet<>();
+        for (int s : calleeRequired) calleeSlotSet.add(s);
+        for (LoweredUnit.LoweredBlock block : caller.blocks()) {
+            for (LoweredUnit.LoweredInstruction instr : block.instructions()) {
+                // Sub-calls could transitively invalidate slots, so we only skip for leaf callers.
+                if (instr instanceof LoweredUnit.CallInstruction) return false;
+                if (instr instanceof LoweredUnit.ResetInstruction reset
+                        && calleeSlotSet.contains(reset.slotId())) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     public static boolean shouldInlineRequiredSlots(int slotCount, int callSites) {

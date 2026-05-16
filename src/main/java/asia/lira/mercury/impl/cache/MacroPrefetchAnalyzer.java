@@ -3,6 +3,8 @@ package asia.lira.mercury.impl.cache;
 import asia.lira.mercury.impl.FastMacro;
 import asia.lira.mercury.ir.FunctionIrRegistry;
 import asia.lira.mercury.jit.registry.UnknownCommandBindingRegistry;
+import asia.lira.mercury.mixin.accessor.MixinMacroVariableLineAccessor;
+import it.unimi.dsi.fastutil.ints.IntList;
 import net.minecraft.command.argument.NbtPathArgumentType;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.StringNbtReader;
@@ -82,7 +84,8 @@ public final class MacroPrefetchAnalyzer {
                             storagePath,
                             fastMacro.varNames,
                             observedFieldSources,
-                            buildSummary(macroFunctionId, storageId, storagePathExpression, fastMacro.varNames, observedFieldSources)
+                            buildSummary(macroFunctionId, storageId, storagePathExpression, fastMacro.varNames, observedFieldSources),
+                            detectFunctionDispatchArgIndex(fastMacro)
                     );
                     plansByKey.put(key, plan);
                 }
@@ -149,6 +152,17 @@ public final class MacroPrefetchAnalyzer {
                 + " storage=" + storageId + "/" + storagePathExpression
                 + " args=" + argumentNames
                 + " observed=" + observedFieldSources;
+    }
+
+    private static int detectFunctionDispatchArgIndex(FastMacro<?> fastMacro) {
+        if (fastMacro.lines.size() != 1) return -1;
+        Object line = fastMacro.lines.get(0);
+        if (!(line instanceof MixinMacroVariableLineAccessor<?> accessor)) return -1;
+        java.util.List<String> segments = accessor.mercury$getInvocation().segments();
+        if (segments.size() != 2 || !segments.get(0).equals("function ") || !segments.get(1).isEmpty()) return -1;
+        IntList variableIndices = accessor.mercury$getVariableIndices();
+        if (variableIndices.size() != 1 || variableIndices.getInt(0) != 0) return -1;
+        return 0;
     }
 
     private static NbtPathArgumentType.NbtPath parsePath(String expression) {

@@ -89,7 +89,9 @@ public final class MacroPrefetchRegistry {
     public void prefetch(int planId) {
         MacroPrefetchPlan plan = requirePlan(planId);
         MacroPrefetchLine line = requireLine(planId);
-        refreshLine(plan, line, "prefetch");
+        if (!line.isValid()) {
+            refreshLine(plan, line, "prefetch");
+        }
     }
 
     public void onMacroWithStorageCall(int planId) {

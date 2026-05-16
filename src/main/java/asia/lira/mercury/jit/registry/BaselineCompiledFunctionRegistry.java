@@ -169,7 +169,8 @@ public final class BaselineCompiledFunctionRegistry {
             Identifier id = entry.getKey();
             Class<?> definedClass = definedClasses.get(id);
             try {
-                MethodHandle invokeHandle = MethodHandles.privateLookupIn(definedClass, lookup).findStatic(
+                MethodHandles.Lookup privateLookup = MethodHandles.privateLookupIn(definedClass, lookup);
+                MethodHandle invokeHandle = privateLookup.findStatic(
                         definedClass,
                         "invoke",
                         MethodType.methodType(
@@ -181,6 +182,23 @@ public final class BaselineCompiledFunctionRegistry {
                                 int.class
                         )
                 );
+                MethodHandle invokeEffectHandle = null;
+                if (invokeEffectIds.contains(id)) {
+                    try {
+                        invokeEffectHandle = privateLookup.findStatic(
+                                definedClass,
+                                "invokeEffect",
+                                MethodType.methodType(
+                                        void.class,
+                                        ExecutionFrame.class,
+                                        Object.class,
+                                        CommandExecutionContext.class,
+                                        net.minecraft.command.Frame.class
+                                )
+                        );
+                    } catch (ReflectiveOperationException ignored) {
+                    }
+                }
                 BaselineBytecodeCompiler.CompiledClassData classData = entry.getValue();
                 tier1Artifacts.put(id, new CompiledArtifact(
                         compiledPrograms.get(id),
@@ -189,7 +207,8 @@ public final class BaselineCompiledFunctionRegistry {
                         classData.classBytes(),
                         classData.internalName(),
                         classData.requiredSlots(),
-                        ArtifactKind.TIER1
+                        ArtifactKind.TIER1,
+                        invokeEffectHandle
                 ));
             } catch (ReflectiveOperationException exception) {
                 throw new RuntimeException("Failed to bind compiled class for " + id, exception);
@@ -328,7 +347,8 @@ public final class BaselineCompiledFunctionRegistry {
                     classData.classBytes(),
                     classData.internalName(),
                     classData.requiredSlots(),
-                    ArtifactKind.SYNTHETIC
+                    ArtifactKind.SYNTHETIC,
+                    null
             );
             syntheticArtifacts.put(syntheticId, artifact);
             return artifact;
@@ -393,7 +413,8 @@ public final class BaselineCompiledFunctionRegistry {
                     classData.classBytes(),
                     classData.internalName(),
                     classData.requiredSlots(),
-                    ArtifactKind.TIER2
+                    ArtifactKind.TIER2,
+                    null
             );
         } catch (ReflectiveOperationException exception) {
             return null;
@@ -673,7 +694,8 @@ public final class BaselineCompiledFunctionRegistry {
             byte[] classBytes,
             String internalClassName,
             int[] requiredSlots,
-            ArtifactKind kind
+            ArtifactKind kind,
+            @Nullable MethodHandle invokeEffectHandle
     ) {
         public BaselineExecutionEngine.ExecutionOutcome invoke(ExecutionFrame frame, Object source, CommandExecutionContext<?> context, net.minecraft.command.Frame commandFrame, int initialState) throws Throwable {
             return (BaselineExecutionEngine.ExecutionOutcome) invokeHandle.invoke(frame, source, context, commandFrame, initialState);

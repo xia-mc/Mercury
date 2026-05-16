@@ -124,10 +124,11 @@ public final class LoweredUnitInliner {
     }
 
     private static boolean isInlineCandidate(LoweredUnit unit) {
-        int completeCount = 0;
+        int exitCount = 0;
         for (LoweredUnit.LoweredBlock block : unit.blocks()) {
-            if (block.terminator() instanceof LoweredUnit.CompleteTerminator) {
-                completeCount++;
+            if (block.terminator() instanceof LoweredUnit.CompleteTerminator
+                    || block.terminator() instanceof LoweredUnit.ReturnValueTerminator) {
+                exitCount++;
                 continue;
             }
             if (block.terminator() instanceof LoweredUnit.JumpLocalTerminator) {
@@ -135,7 +136,7 @@ public final class LoweredUnitInliner {
             }
             return false;
         }
-        return completeCount == 1;
+        return exitCount == 1;
     }
 
     private static LoweredUnit inlineCall(
@@ -202,7 +203,8 @@ public final class LoweredUnitInliner {
             Map<Integer, Integer> calleeIndexMap,
             int continuationIndex
     ) {
-        if (terminator instanceof LoweredUnit.CompleteTerminator) {
+        if (terminator instanceof LoweredUnit.CompleteTerminator
+                || terminator instanceof LoweredUnit.ReturnValueTerminator) {
             return new LoweredUnit.JumpLocalTerminator(continuationIndex);
         }
         if (terminator instanceof LoweredUnit.JumpLocalTerminator jumpLocalTerminator) {

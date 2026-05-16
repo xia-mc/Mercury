@@ -2,6 +2,7 @@ package asia.lira.mercury.impl.cache;
 
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.server.function.MacroException;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.List;
@@ -115,6 +116,13 @@ public final class MacroPrefetchLine implements MacroArgumentProvider {
 
     public void recordMiss() {
         misses++;
+    }
+
+    public @Nullable NbtElement valueAt(int index) {
+        if (!valid || index < 0 || index >= values.length) {
+            return null;
+        }
+        return values[index];
     }
 
     @Override
