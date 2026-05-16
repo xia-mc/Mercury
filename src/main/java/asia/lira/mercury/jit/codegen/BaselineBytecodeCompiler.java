@@ -685,7 +685,7 @@ public final class BaselineBytecodeCompiler {
                     if (plan != null && plan.functionDispatchArgIndex() >= 0) {
                         spillAllPromoted(visitor, unit);
                         Label suspendLabel = new Label();
-                        BaselineBytecodeOps.buildTryDirectCalld(visitor, suspendPrefetchedMacro.planId());
+                        BaselineBytecodeOps.buildOpDirectCalld(visitor, suspendPrefetchedMacro.planId());
                         visitor.visitJumpInsn(Opcodes.IFEQ, suspendLabel);
                         reloadAllPromotedSlots(visitor, unit);
                         BaselineBytecodeOps.pushInt(visitor, suspendPrefetchedMacro.continuationBlockIndex());

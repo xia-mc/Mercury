@@ -12,6 +12,7 @@ import asia.lira.mercury.jit.registry.OptimizedSlotRegistry;
 import asia.lira.mercury.jit.registry.UnknownCommandBindingRegistry;
 import com.mojang.brigadier.StringReader;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import net.minecraft.command.CommandExecutionContext;
 import net.minecraft.command.Frame;
 import net.minecraft.command.argument.NbtPathArgumentType;
@@ -28,6 +29,7 @@ import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.server.function.CommandFunction;
 import net.minecraft.server.function.MacroException;
 import net.minecraft.server.function.Procedure;
+import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
 import java.util.concurrent.atomic.AtomicLong;
@@ -94,13 +96,25 @@ public final class BaselineExecutionEngine {
             DIRECT_CALLD_FALLBACKS.incrementAndGet();
             return false;
         }
-        String idStr = FastMacro.toString(argValue);
+        String invocationStr = FastMacro.toString(argValue);
+        int firstSpace = invocationStr.indexOf(' ');
         Identifier targetId;
+        if (firstSpace >= 0) {
+            String suffix = invocationStr.substring(firstSpace + 1);
+            if (suffix.startsWith("{") || suffix.startsWith("with storage ")) {
+                // Valid "id {...}" or "id with storage ns path" — let vanilla handle it
+                DIRECT_CALLD_FALLBACKS.incrementAndGet();
+                return false;
+            }
+            // Unrecognized suffix — syntax error matching vanilla "function" command parse failure
+            dispatchDirectCalldError(source, context, invocationStr);
+            return true;
+        }
         try {
-            targetId = Identifier.of(idStr);
+            targetId = Identifier.of(invocationStr);
         } catch (Exception ignored) {
-            DIRECT_CALLD_FALLBACKS.incrementAndGet();
-            return false;
+            dispatchDirectCalldError(source, context, invocationStr);
+            return true;
         }
         BaselineCompiledFunctionRegistry.CompiledArtifact artifact =
                 BaselineCompiledFunctionRegistry.getInstance().getArtifact(targetId);
@@ -112,6 +126,56 @@ public final class BaselineExecutionEngine {
         artifact.invokeEffectHandle().invoke(frame, source, context, commandFrame);
         DIRECT_CALLD_HITS.incrementAndGet();
         return true;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T extends AbstractServerCommandSource<T>> boolean opDirectCalld(
+            int planId,
+            ExecutionFrame frame,
+            Object rawSource,
+            CommandExecutionContext<?> rawContext,
+            Frame commandFrame
+    ) throws Throwable {
+        MacroPrefetchLine line = MacroPrefetchRegistry.getInstance().line(planId);
+        if (line == null) return false;
+        NbtElement argValue = line.valueAt(0);
+        if (argValue == null) return false;
+        String invocationStr = FastMacro.toString(argValue);
+        int firstSpace = invocationStr.indexOf(' ');
+        if (firstSpace >= 0) {
+            String suffix = invocationStr.substring(firstSpace + 1);
+            if (suffix.startsWith("{") || suffix.startsWith("with storage ")) {
+                return false;
+            }
+            dispatchDirectCalldError(rawSource, rawContext, invocationStr);
+            return true;
+        }
+        Identifier targetId;
+        try {
+            targetId = Identifier.of(invocationStr);
+        } catch (Exception ignored) {
+            dispatchDirectCalldError(rawSource, rawContext, invocationStr);
+            return true;
+        }
+        BaselineCompiledFunctionRegistry.CompiledArtifact artifact =
+                BaselineCompiledFunctionRegistry.getInstance().getArtifact(targetId);
+        if (artifact == null) return false;
+        if (artifact.invokeEffectHandle() != null) {
+            ensureLoaded(frame, artifact.requiredSlots());
+            artifact.invokeEffectHandle().invoke(frame, rawSource, rawContext, commandFrame);
+            return true;
+        }
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends AbstractServerCommandSource<T>> void dispatchDirectCalldError(
+            Object source, CommandExecutionContext<?> rawContext, String invocationStr) {
+        T typedSource = (T) source;
+        CommandExecutionContext<T> context = (CommandExecutionContext<T>) rawContext;
+        CommandSyntaxException exception = new SimpleCommandExceptionType(
+                Text.literal("Unknown function: " + invocationStr)).create();
+        typedSource.handleException(exception, false, context.getTracer());
     }
 
     public static int readSlot(ExecutionFrame frame, int slotId) {

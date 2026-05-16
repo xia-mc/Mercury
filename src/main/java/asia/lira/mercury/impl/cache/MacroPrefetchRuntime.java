@@ -129,6 +129,68 @@ public final class MacroPrefetchRuntime {
         CommandExecutionContext.enqueueProcedureCall(context, procedure, typedSource, typedSource.getReturnValueConsumer());
     }
 
+    @SuppressWarnings("unchecked")
+    public static <T extends AbstractServerCommandSource<T>> void invokePrefetchedMacroDirect(
+            int planId,
+            Object rawSource,
+            CommandExecutionContext<?> rawContext,
+            Frame frame
+    ) throws MacroException {
+        T typedSource = (T) rawSource;
+        CommandExecutionContext<T> context = (CommandExecutionContext<T>) rawContext;
+        MacroPrefetchRegistry registry = MacroPrefetchRegistry.getInstance();
+        MacroPrefetchPlan plan = registry.plan(planId);
+        if (plan == null) {
+            throw new IllegalStateException("Missing macro prefetch plan " + planId);
+        }
+
+        MacroOptimizationCoordinator.getInstance().installPending(typedSource.getDispatcher());
+        registry.onMacroWithStorageCall(planId);
+        @Nullable MacroArgumentProvider provider = registry.activeProvider(planId);
+        boolean prefetchHit = provider != null;
+        NbtCompound arguments = provider != null
+                ? provider.resolveArguments(plan.argumentNames())
+                : registry.loadArgumentsCompound(planId);
+        InstalledMacroSpecialization installed = MacroOptimizationCoordinator.getInstance().matchingInstalled(planId, arguments);
+        boolean specializedUsed = false;
+        boolean guardHit = false;
+        Procedure<T> procedure;
+        if (installed != null) {
+            guardHit = true;
+            specializedUsed = true;
+            procedure = (Procedure<T>) installed.procedure();
+        } else {
+            if (prefetchHit) {
+                registry.recordHit();
+                procedure = ((FastMacro<T>) plan.macro()).withMacroReplaced(provider, typedSource.getDispatcher());
+            } else {
+                registry.recordMiss();
+                procedure = ((FastMacro<T>) plan.macro()).withMacroReplaced(arguments, typedSource.getDispatcher());
+            }
+        }
+        MacroOptimizationCoordinator.getInstance().recordInvocation(
+                planId,
+                plan.callsiteKey(),
+                plan.argumentNames(),
+                arguments,
+                prefetchHit,
+                specializedUsed,
+                guardHit
+        );
+        MacroOptimizationCoordinator.getInstance().installPending(typedSource.getDispatcher());
+
+        // Inline CommandFunctionAction + SingleCommandAction as direct calls instead of queue entries
+        context.decrementCommandQuota();
+        if (context.getTracer() != null) {
+            context.getTracer().traceFunctionCall(frame.depth(), procedure.id(), procedure.entries().size());
+        }
+        int childDepth = frame.depth() + 1;
+        Frame childFrame = new Frame(childDepth, typedSource.getReturnValueConsumer(), context.getEscapeControl(childDepth));
+        for (var entry : procedure.entries()) {
+            entry.execute(typedSource, context, childFrame);
+        }
+    }
+
     public static void onStoreToMacroStorage(Identifier storageId) {
         MacroPrefetchRegistry.getInstance().onStoreToMacroStorage(storageId);
     }

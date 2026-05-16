@@ -1,6 +1,6 @@
 package asia.lira.mercury.jit.runtime;
 
-import asia.lira.mercury.impl.cache.MacroPrefetchInvocationAction;
+import asia.lira.mercury.impl.cache.MacroPrefetchRuntime;
 import asia.lira.mercury.jit.registry.BaselineCompiledFunctionRegistry;
 import asia.lira.mercury.jit.registry.JitPreparationRegistry;
 import asia.lira.mercury.jit.registry.OptimizedSlotRegistry;
@@ -104,6 +104,8 @@ public final class BaselineCompiledAction<T extends AbstractServerCommandSource<
         context.enqueueCommand(new CommandQueueEntry<>(frame, action.bind(source)));
         if (nextState >= 0) {
             context.enqueueCommand(new CommandQueueEntry<>(frame, new BaselineContinuationAction<>(artifact, executionFrame, source, nextState, ownsFrame)));
+        } else if (ownsFrame) {
+            SynchronizationRuntime.getInstance().popFrame(executionFrame);
         }
     }
 
@@ -117,9 +119,15 @@ public final class BaselineCompiledAction<T extends AbstractServerCommandSource<
             int nextState,
             boolean ownsFrame
     ) {
-        context.enqueueCommand(new CommandQueueEntry<>(frame, new MacroPrefetchInvocationAction<T>(planId).bind(source)));
+        try {
+            MacroPrefetchRuntime.invokePrefetchedMacroDirect(planId, source, context, frame);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to inline prefetched macro " + planId, e);
+        }
         if (nextState >= 0) {
             context.enqueueCommand(new CommandQueueEntry<>(frame, new BaselineContinuationAction<>(artifact, executionFrame, source, nextState, ownsFrame)));
+        } else if (ownsFrame) {
+            SynchronizationRuntime.getInstance().popFrame(executionFrame);
         }
     }
 

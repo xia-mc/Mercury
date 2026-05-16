@@ -11,7 +11,10 @@ import asia.lira.mercury.jit.dump.JitPreparationExporter;
 import asia.lira.mercury.jit.runtime.BaselineExecutionEngine;
 import asia.lira.mercury.jit.runtime.MercuryJitRuntime;
 import asia.lira.mercury.jit.runtime.SynchronizationRuntime;
+import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.command.DataCommandStorage;
@@ -32,6 +35,7 @@ import static net.minecraft.server.command.CommandManager.literal;
 
 
 public class CommandHandler implements CommandRegistrationCallback {
+    private static final Logger LOGGER = LoggerFactory.getLogger("Mercury");
     public static final ScoreHolder RAX = ScoreHolder.fromName("rax");
     public static final ScoreHolder R0 = ScoreHolder.fromName("r0");
     public static final Identifier STORAGE = Identifier.of("std", "vm");
@@ -276,75 +280,82 @@ public class CommandHandler implements CommandRegistrationCallback {
                 )
         );
 
+        Command<ServerCommandSource> syscallHandler = context -> {
+            ServerScoreboard scoreboard = Mercury.SERVER.getScoreboard();
+            ScoreboardObjective vmRegs = scoreboard.getNullableObjective("vm_regs");
+            if (vmRegs == null) {
+                return -1;
+            }
+            ScoreboardScore rax = (ScoreboardScore) scoreboard.getScore(RAX, vmRegs);
+            if (rax == null) {
+                return -1;
+            }
+            int id = rax.getScore();
+
+            switch (id) {
+                case 0 -> {  // int getAPIVersion()
+                    rax.setScore(Mercury.API_VERSION);
+                    return 1;
+                }
+                case 1 -> {  // void nanoTimes(Int64 *result)
+                    ReadableScoreboardScore r0 = scoreboard.getScore(R0, vmRegs);
+                    if (r0 == null) {
+                        return -1;
+                    }
+                    NbtList heap = getHeap();
+                    // typedef struct {
+                    //     int low;
+                    //     int high;
+                    // } Int64;
+                    int addr = r0.getScore();
+                    if (!hasHeapRange(heap, addr, 2)) {
+                        return -1;
+                    }
+                    long value = System.nanoTime();
+                    int low = (int) (value & 0xFFFFFFFFL);
+                    int high = (int) ((value >>> 32) & 0xFFFFFFFFL);
+                    heap.setElement(addr, NbtInt.of(low));
+                    heap.setElement(addr + 1, NbtInt.of(high));
+                    return 1;
+                }
+                case 2 -> {  // void puts(const char *string)
+                    ReadableScoreboardScore r0 = scoreboard.getScore(R0, vmRegs);
+                    if (r0 == null) {
+                        return -1;
+                    }
+                    NbtList heap = getHeap();
+                    int addr = r0.getScore();
+                    if (!hasHeapRange(heap, addr, 1)) {
+                        return -1;
+                    }
+                    StringBuilder builder = new StringBuilder();
+                    while (addr < heap.size()) {
+                        char c = (char) heap.getInt(addr);
+                        if (c == 0) {
+                            String text = builder.toString();
+                            LOGGER.info("[benchmark] {}", text);
+                            Mercury.SERVER.getPlayerManager().broadcast(Text.literal(text), false);
+                            return 1;
+                        }
+                        builder.append(c);
+                        addr++;
+                    }
+                    return -1;
+                }
+                default -> {
+                    return -1;
+                }
+            }
+        };
         dispatcher.register(literal("syscall")
                 .requires(source -> source.hasPermissionLevel(2))
-                .executes(context -> {
-                    ServerScoreboard scoreboard = Mercury.SERVER.getScoreboard();
-                    ScoreboardObjective vmRegs = scoreboard.getNullableObjective("vm_regs");
-                    if (vmRegs == null) {
-                        return -1;
-                    }
-                    ScoreboardScore rax = (ScoreboardScore) scoreboard.getScore(RAX, vmRegs);
-                    if (rax == null) {
-                        return -1;
-                    }
-                    int id = rax.getScore();
-
-                    switch (id) {
-                        case 0 -> {  // int getAPIVersion()
-                            rax.setScore(Mercury.API_VERSION);
-                            return 1;
-                        }
-                        case 1 -> {  // void nanoTimes(Int64 *result)
-                            ReadableScoreboardScore r0 = scoreboard.getScore(R0, vmRegs);
-                            if (r0 == null) {
-                                return -1;
-                            }
-                            NbtList heap = getHeap();
-                            // typedef struct {
-                            //     int low;
-                            //     int high;
-                            // } Int64;
-                            int addr = r0.getScore();
-                            if (!hasHeapRange(heap, addr, 2)) {
-                                return -1;
-                            }
-                            long value = System.nanoTime();
-                            int low = (int) (value & 0xFFFFFFFFL);
-                            int high = (int) ((value >>> 32) & 0xFFFFFFFFL);
-                            heap.setElement(addr, NbtInt.of(low));
-                            heap.setElement(addr + 1, NbtInt.of(high));
-                            return 1;
-                        }
-                        case 2 -> {  // void puts(const char *string)
-                            ReadableScoreboardScore r0 = scoreboard.getScore(R0, vmRegs);
-                            if (r0 == null) {
-                                return -1;
-                            }
-                            NbtList heap = getHeap();
-                            int addr = r0.getScore();
-                            if (!hasHeapRange(heap, addr, 1)) {
-                                return -1;
-                            }
-                            StringBuilder builder = new StringBuilder();
-                            while (addr < heap.size()) {
-                                char c = (char) heap.getInt(addr);
-                                if (c == 0) {
-                                    Mercury.SERVER.getPlayerManager().broadcast(Text.literal(
-                                            builder.toString()
-                                    ), false);
-                                    return 1;
-                                }
-                                builder.append(c);
-                                addr++;
-                            }
-                            return -1;
-                        }
-                        default -> {
-                            return -1;
-                        }
-                    }
-                })
+                .executes(syscallHandler)
+        );
+        dispatcher.register(literal("mcfp")
+                .requires(source -> source.hasPermissionLevel(2))
+                .then(literal("syscall")
+                        .executes(syscallHandler)
+                )
         );
     }
 }

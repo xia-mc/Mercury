@@ -117,6 +117,21 @@ public final class BaselineBytecodeOps {
         );
     }
 
+    public static void buildOpDirectCalld(MethodVisitor visitor, int planId) {
+        pushInt(visitor, planId);
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        visitor.visitVarInsn(Opcodes.ALOAD, 1);
+        visitor.visitVarInsn(Opcodes.ALOAD, 2);
+        visitor.visitVarInsn(Opcodes.ALOAD, 3);
+        visitor.visitMethodInsn(
+                Opcodes.INVOKESTATIC,
+                RUNTIME_INTERNAL,
+                "opDirectCalld",
+                "(IL" + FRAME_INTERNAL + ";Ljava/lang/Object;" + CONTEXT_DESC + COMMAND_FRAME_DESC + ")Z",
+                false
+        );
+    }
+
     public static void buildStaticInvokeEffect(MethodVisitor visitor, String targetInternalName) {
         visitor.visitVarInsn(Opcodes.ALOAD, 0);
         visitor.visitVarInsn(Opcodes.ALOAD, 1);
