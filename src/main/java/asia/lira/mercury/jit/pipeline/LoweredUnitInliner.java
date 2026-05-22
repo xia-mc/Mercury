@@ -126,8 +126,7 @@ public final class LoweredUnitInliner {
     private static boolean isInlineCandidate(LoweredUnit unit) {
         int exitCount = 0;
         for (LoweredUnit.LoweredBlock block : unit.blocks()) {
-            if (block.terminator() instanceof LoweredUnit.CompleteTerminator
-                    || block.terminator() instanceof LoweredUnit.ReturnValueTerminator) {
+            if (block.terminator() instanceof LoweredUnit.CompleteTerminator) {
                 exitCount++;
                 continue;
             }

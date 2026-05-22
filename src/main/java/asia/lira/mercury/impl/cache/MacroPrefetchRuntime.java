@@ -179,15 +179,40 @@ public final class MacroPrefetchRuntime {
         );
         MacroOptimizationCoordinator.getInstance().installPending(typedSource.getDispatcher());
 
-        // Inline CommandFunctionAction + SingleCommandAction as direct calls instead of queue entries
+        // Inline CommandFunctionAction + SingleCommandAction as direct calls instead of queue entries.
         context.decrementCommandQuota();
         if (context.getTracer() != null) {
             context.getTracer().traceFunctionCall(frame.depth(), procedure.id(), procedure.entries().size());
         }
         int childDepth = frame.depth() + 1;
-        Frame childFrame = new Frame(childDepth, typedSource.getReturnValueConsumer(), context.getEscapeControl(childDepth));
+        DirectFrameControl childControl = new DirectFrameControl(context, childDepth);
+        Frame childFrame = new Frame(childDepth, typedSource.getReturnValueConsumer(), childControl);
         for (var entry : procedure.entries()) {
             entry.execute(typedSource, context, childFrame);
+            if (childControl.discarded()) {
+                break;
+            }
+        }
+    }
+
+    private static final class DirectFrameControl implements Frame.Control {
+        private final CommandExecutionContext<?> context;
+        private final int depth;
+        private boolean discarded;
+
+        private DirectFrameControl(CommandExecutionContext<?> context, int depth) {
+            this.context = context;
+            this.depth = depth;
+        }
+
+        @Override
+        public void discard() {
+            discarded = true;
+            context.escape(depth);
+        }
+
+        private boolean discarded() {
+            return discarded;
         }
     }
 

@@ -208,8 +208,9 @@ public class CommandHandler implements CommandRegistrationCallback {
     private static int showStats(ServerCommandSource source) {
         long hits = BaselineExecutionEngine.DIRECT_CALLD_HITS.get();
         long fallbacks = BaselineExecutionEngine.DIRECT_CALLD_FALLBACKS.get();
+        long inlineHits = BaselineExecutionEngine.INLINE_PREFETCH_HITS.get();
         source.sendFeedback(() -> Text.literal(
-                "directCalld: hits=" + hits + " fallbacks=" + fallbacks
+                "directCalld: hits=" + hits + " fallbacks=" + fallbacks + " | inlinePrefetch: hits=" + inlineHits
         ), false);
         return 1;
     }

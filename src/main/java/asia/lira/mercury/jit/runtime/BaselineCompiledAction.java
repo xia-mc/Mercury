@@ -3,19 +3,15 @@ package asia.lira.mercury.jit.runtime;
 import asia.lira.mercury.impl.cache.MacroPrefetchRuntime;
 import asia.lira.mercury.jit.registry.BaselineCompiledFunctionRegistry;
 import asia.lira.mercury.jit.registry.JitPreparationRegistry;
-import asia.lira.mercury.jit.registry.OptimizedSlotRegistry;
 import asia.lira.mercury.jit.registry.Tier2CompilationCoordinator;
 import asia.lira.mercury.jit.registry.UnknownCommandBindingRegistry;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.command.CommandExecutionContext;
 import net.minecraft.command.CommandQueueEntry;
 import net.minecraft.command.Frame;
 import net.minecraft.command.SourcedCommandAction;
-import net.minecraft.scoreboard.ScoreHolder;
-import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.server.command.AbstractServerCommandSource;
-
-import java.util.BitSet;
+import net.minecraft.server.function.MacroException;
 
 public final class BaselineCompiledAction<T extends AbstractServerCommandSource<T>> implements SourcedCommandAction<T> {
     private final BaselineCompiledFunctionRegistry.CompiledArtifact artifact;
@@ -38,6 +34,11 @@ public final class BaselineCompiledAction<T extends AbstractServerCommandSource<
 
         try {
             runArtifact(artifact, current, source, context, frame, 0, ownsFrame);
+        } catch (CommandSyntaxException commandSyntaxException) {
+            if (ownsFrame && runtime.currentFrame() == current) {
+                runtime.popFrame(current);
+            }
+            source.handleException(commandSyntaxException, false, context.getTracer());
         } catch (Throwable throwable) {
             if (ownsFrame && runtime.currentFrame() == current) {
                 runtime.popFrame(current);
@@ -121,8 +122,8 @@ public final class BaselineCompiledAction<T extends AbstractServerCommandSource<
     ) {
         try {
             MacroPrefetchRuntime.invokePrefetchedMacroDirect(planId, source, context, frame);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to inline prefetched macro " + planId, e);
+        } catch (MacroException e) {
+            throw new RuntimeException("Failed to instantiate prefetched macro " + planId, e);
         }
         if (nextState >= 0) {
             context.enqueueCommand(new CommandQueueEntry<>(frame, new BaselineContinuationAction<>(artifact, executionFrame, source, nextState, ownsFrame)));
@@ -132,22 +133,6 @@ public final class BaselineCompiledAction<T extends AbstractServerCommandSource<
     }
 
     static void flushDirtySlots(ExecutionFrame frame) {
-        BitSet dirty = frame.dirtySlots();
-        Scoreboard scoreboard = asia.lira.mercury.Mercury.SERVER.getScoreboard();
-
-        for (int slotId = dirty.nextSetBit(0); slotId >= 0; slotId = dirty.nextSetBit(slotId + 1)) {
-            OptimizedSlotRegistry.SlotMetadata metadata = JitPreparationRegistry.getInstance().slotRegistry().getSlot(slotId);
-            if (metadata == null) {
-                continue;
-            }
-
-            ScoreboardObjective objective = scoreboard.getNullableObjective(metadata.key().objectiveName());
-            if (objective == null) {
-                continue;
-            }
-
-            scoreboard.getOrCreateScore(ScoreHolder.fromName(metadata.key().holderName()), objective).setScore(frame.getSlotValue(slotId));
-            frame.loadSlotValue(slotId, frame.getSlotValue(slotId));
-        }
+        BaselineExecutionEngine.flushFrame(frame);
     }
 }

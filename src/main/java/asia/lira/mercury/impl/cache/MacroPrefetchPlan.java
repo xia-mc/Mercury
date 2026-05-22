@@ -25,7 +25,8 @@ public record MacroPrefetchPlan(
         List<String> argumentNames,
         Map<String, String> observedFieldSources,
         String generatedMacroSummary,
-        int functionDispatchArgIndex
+        int functionDispatchArgIndex,
+        boolean noFunctionCalls
 ) {
     public MacroPrefetchPlan {
         argumentNames = List.copyOf(argumentNames);

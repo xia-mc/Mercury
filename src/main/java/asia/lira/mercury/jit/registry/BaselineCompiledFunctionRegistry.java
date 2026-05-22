@@ -19,6 +19,7 @@ import asia.lira.mercury.jit.pipeline.SlotEffectSummary;
 import asia.lira.mercury.jit.pass.ArithmeticSemanticsOptimizationPass;
 import asia.lira.mercury.jit.pass.BaselinePassContext;
 import asia.lira.mercury.jit.pass.BaselinePassPipeline;
+import asia.lira.mercury.jit.pass.CompiledCallIsolationPass;
 import asia.lira.mercury.jit.pass.MacroPrefetchPass;
 import asia.lira.mercury.jit.pass.SlotPromotionPass;
 import asia.lira.mercury.jit.pass.UnresolvedCallIsolationPass;
@@ -136,17 +137,33 @@ public final class BaselineCompiledFunctionRegistry {
             optimizedUnits.put(entry.getKey(), optimizedUnit);
         }
 
-        Set<Identifier> neverSuspendIds = computeNeverSuspendIds(optimizedUnits);
+        Set<Identifier> preliminaryInvokeEffectIds = computeNeverSuspendIds(optimizedUnits);
+        BaselinePassPipeline callIsolationPipeline = new BaselinePassPipeline(List.of(
+                new CompiledCallIsolationPass(preliminaryInvokeEffectIds)
+        ));
+        Map<Identifier, LoweredUnit> isolatedUnits = new LinkedHashMap<>();
+        for (Map.Entry<Identifier, LoweredUnit> entry : optimizedUnits.entrySet()) {
+            LoweredUnit isolatedUnit = callIsolationPipeline.apply(entry.getValue(), new BaselinePassContext(
+                    internalNames,
+                    callSiteCounts,
+                    requiredSlotsById,
+                    effectSummaries,
+                    collectUnitSlots(requiredSlotsById.get(entry.getKey()))
+            ));
+            isolatedUnits.put(entry.getKey(), isolatedUnit);
+        }
+
+        Set<Identifier> neverSuspendIds = computeNeverSuspendIds(isolatedUnits);
         Set<Identifier> invokeEffectIds = new LinkedHashSet<>();
         for (Identifier id : neverSuspendIds) {
-            LoweredUnit unit = optimizedUnits.get(id);
+            LoweredUnit unit = isolatedUnits.get(id);
             if (unit != null && !BaselineBytecodeCompiler.shouldSplitInvoke(unit)) {
                 invokeEffectIds.add(id);
             }
         }
 
         Map<Identifier, BaselineBytecodeCompiler.CompiledClassData> compiledClasses = new LinkedHashMap<>();
-        for (Map.Entry<Identifier, LoweredUnit> entry : optimizedUnits.entrySet()) {
+        for (Map.Entry<Identifier, LoweredUnit> entry : isolatedUnits.entrySet()) {
             compiledClasses.put(entry.getKey(), BaselineBytecodeCompiler.compile(
                     entry.getValue(),
                     internalNames,
@@ -202,7 +219,7 @@ public final class BaselineCompiledFunctionRegistry {
                 BaselineBytecodeCompiler.CompiledClassData classData = entry.getValue();
                 tier1Artifacts.put(id, new CompiledArtifact(
                         compiledPrograms.get(id),
-                        optimizedUnits.get(id),
+                        isolatedUnits.get(id),
                         invokeHandle,
                         classData.classBytes(),
                         classData.internalName(),
@@ -309,7 +326,23 @@ public final class BaselineCompiledFunctionRegistry {
                 effectSummaries,
                 collectUnitSlots(requiredSlotsById.get(syntheticId))
         ));
+        Set<Identifier> existingInvokeEffectIds = collectInvokeEffectIds(allArtifacts().values());
+        loweredUnit = new BaselinePassPipeline(List.of(new CompiledCallIsolationPass(existingInvokeEffectIds))).apply(
+                loweredUnit,
+                new BaselinePassContext(
+                        internalNames,
+                        callSiteCounts,
+                        requiredSlotsById,
+                        effectSummaries,
+                        collectUnitSlots(requiredSlotsById.get(syntheticId))
+                )
+        );
         requiredSlotsById.put(syntheticId, collectRequiredSlots(loweredUnit));
+        Set<Identifier> invokeEffectIds = new LinkedHashSet<>(existingInvokeEffectIds);
+        if (computeNeverSuspendIds(Map.of(syntheticId, loweredUnit)).contains(syntheticId)
+                && !BaselineBytecodeCompiler.shouldSplitInvoke(loweredUnit)) {
+            invokeEffectIds.add(syntheticId);
+        }
 
         Set<Identifier> classesWithSharedRequiredSlots = collectClassesWithSharedRequiredSlots(
                 java.util.Set.of(syntheticId),
@@ -322,7 +355,7 @@ public final class BaselineCompiledFunctionRegistry {
                 callSiteCounts,
                 requiredSlotsById,
                 classesWithSharedRequiredSlots,
-                Set.of()
+                invokeEffectIds
         );
 
         GeneratedClassLoader classLoader = new GeneratedClassLoader(BaselineCompiledFunctionRegistry.class.getClassLoader());
@@ -340,6 +373,23 @@ public final class BaselineCompiledFunctionRegistry {
                             int.class
                     )
             );
+            MethodHandle invokeEffectHandle = null;
+            if (invokeEffectIds.contains(syntheticId)) {
+                try {
+                    invokeEffectHandle = MethodHandles.privateLookupIn(definedClass, MethodHandles.lookup()).findStatic(
+                            definedClass,
+                            "invokeEffect",
+                            MethodType.methodType(
+                                    void.class,
+                                    ExecutionFrame.class,
+                                    Object.class,
+                                    CommandExecutionContext.class,
+                                    net.minecraft.command.Frame.class
+                            )
+                    );
+                } catch (ReflectiveOperationException ignored) {
+                }
+            }
             CompiledArtifact artifact = new CompiledArtifact(
                     program,
                     loweredUnit,
@@ -348,7 +398,7 @@ public final class BaselineCompiledFunctionRegistry {
                     classData.internalName(),
                     classData.requiredSlots(),
                     ArtifactKind.SYNTHETIC,
-                    null
+                    invokeEffectHandle
             );
             syntheticArtifacts.put(syntheticId, artifact);
             return artifact;
@@ -368,6 +418,7 @@ public final class BaselineCompiledFunctionRegistry {
         }
         internalNames.put(functionId, BaselineBytecodeCompiler.internalNameFor(functionId).replace("Generated_", "Generated_T2_"));
         requiredSlotsById.put(functionId, collectRequiredSlots(loweredUnit));
+        Set<Identifier> invokeEffectIds = collectInvokeEffectIds(allArtifacts().values());
 
         Set<Identifier> classesWithSharedRequiredSlots = collectClassesWithSharedRequiredSlots(
                 java.util.Set.of(functionId),
@@ -380,7 +431,7 @@ public final class BaselineCompiledFunctionRegistry {
                 callSiteCounts,
                 requiredSlotsById,
                 classesWithSharedRequiredSlots,
-                Set.of()
+                invokeEffectIds
         );
 
         GeneratedClassLoader classLoader = new GeneratedClassLoader(BaselineCompiledFunctionRegistry.class.getClassLoader());
@@ -611,6 +662,9 @@ public final class BaselineCompiledFunctionRegistry {
                     }
                 }
                 LoweredUnit.LoweredTerminator terminator = block.terminator();
+                if (terminator instanceof LoweredUnit.ReturnValueTerminator) {
+                    continue outer;
+                }
                 if (terminator instanceof LoweredUnit.SuspendActionTerminator ||
                     terminator instanceof LoweredUnit.SuspendPrefetchedMacroTerminator ||
                     terminator instanceof LoweredUnit.Tier2MacroDispatchTerminator) {
@@ -653,6 +707,16 @@ public final class BaselineCompiledFunctionRegistry {
         } while (changed);
 
         return candidates;
+    }
+
+    private static Set<Identifier> collectInvokeEffectIds(Collection<CompiledArtifact> artifacts) {
+        Set<Identifier> ids = new LinkedHashSet<>();
+        for (CompiledArtifact artifact : artifacts) {
+            if (artifact.invokeEffectHandle() != null) {
+                ids.add(artifact.program().id());
+            }
+        }
+        return ids;
     }
 
     private static Set<Integer> collectUnitSlots(int[] requiredSlots) {

@@ -3,8 +3,11 @@ package asia.lira.mercury.impl.cache;
 import asia.lira.mercury.impl.FastMacro;
 import asia.lira.mercury.ir.FunctionIrRegistry;
 import asia.lira.mercury.jit.registry.UnknownCommandBindingRegistry;
+import asia.lira.mercury.mixin.accessor.MixinMacroFixedLineAccessor;
 import asia.lira.mercury.mixin.accessor.MixinMacroVariableLineAccessor;
+import asia.lira.mercury.mixin.accessor.MixinSingleCommandActionAccessor;
 import it.unimi.dsi.fastutil.ints.IntList;
+import net.minecraft.command.SingleCommandAction;
 import net.minecraft.command.argument.NbtPathArgumentType;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.StringNbtReader;
@@ -85,7 +88,8 @@ public final class MacroPrefetchAnalyzer {
                             fastMacro.varNames,
                             observedFieldSources,
                             buildSummary(macroFunctionId, storageId, storagePathExpression, fastMacro.varNames, observedFieldSources),
-                            detectFunctionDispatchArgIndex(fastMacro)
+                            detectFunctionDispatchArgIndex(fastMacro),
+                            detectNoFunctionCalls(fastMacro)
                     );
                     plansByKey.put(key, plan);
                 }
@@ -163,6 +167,30 @@ public final class MacroPrefetchAnalyzer {
         IntList variableIndices = accessor.mercury$getVariableIndices();
         if (variableIndices.size() != 1 || variableIndices.getInt(0) != 0) return -1;
         return 0;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean detectNoFunctionCalls(FastMacro<?> fastMacro) {
+        for (Object line : fastMacro.lines) {
+            if (line instanceof MixinMacroVariableLineAccessor<?> varLine) {
+                for (String segment : varLine.mercury$getInvocation().segments()) {
+                    if (segment.startsWith("function ") || segment.contains(" function ")) {
+                        return false;
+                    }
+                }
+            } else if (line instanceof MixinMacroFixedLineAccessor<?> fixedLine) {
+                var action = fixedLine.mercury$getAction();
+                if (action instanceof SingleCommandAction.Sourced<?> sourced) {
+                    String cmd = ((MixinSingleCommandActionAccessor<?>) sourced).mercury$getCommand();
+                    if (cmd.startsWith("function ") || cmd.contains(" function ")) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private static NbtPathArgumentType.NbtPath parsePath(String expression) {

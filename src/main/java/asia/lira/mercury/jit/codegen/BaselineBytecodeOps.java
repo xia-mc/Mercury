@@ -4,6 +4,7 @@ import asia.lira.mercury.impl.cache.MacroPrefetchRuntime;
 import asia.lira.mercury.jit.pipeline.LoweredUnit;
 import asia.lira.mercury.jit.runtime.BaselineExecutionEngine;
 import asia.lira.mercury.jit.runtime.ExecutionFrame;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import net.minecraft.text.Text;
 import org.objectweb.asm.Label;
@@ -214,6 +215,17 @@ public final class BaselineBytecodeOps {
         visitor.visitVarInsn(Opcodes.ISTORE, localIndex);
     }
 
+    public static void buildReadIntoPromotedSlot(MethodVisitor visitor, int slotId, int localIndex) {
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        pushInt(visitor, slotId);
+        visitor.visitMethodInsn(Opcodes.INVOKESTATIC, RUNTIME_INTERNAL, "readSlot", "(L" + FRAME_INTERNAL + ";I)I", false);
+        visitor.visitVarInsn(Opcodes.ISTORE, localIndex);
+    }
+
+    public static void buildRecordInlinePrefetchHit(MethodVisitor visitor) {
+        visitor.visitMethodInsn(Opcodes.INVOKESTATIC, RUNTIME_INTERNAL, "recordInlinePrefetchHit", "()V", false);
+    }
+
     public static void buildStorePromotedLocal(MethodVisitor visitor, int localIndex, int value) {
         pushInt(visitor, value);
         visitor.visitVarInsn(Opcodes.ISTORE, localIndex);
@@ -389,6 +401,31 @@ public final class BaselineBytecodeOps {
                 Opcodes.INVOKESTATIC,
                 PREFETCH_RUNTIME_INTERNAL,
                 "invokePrefetchedMacro",
+                "(ILjava/lang/Object;" + CONTEXT_DESC + COMMAND_FRAME_DESC + ")V",
+                false
+        );
+    }
+
+    public static void buildFlushFrame(MethodVisitor visitor) {
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        visitor.visitMethodInsn(
+                Opcodes.INVOKESTATIC,
+                RUNTIME_INTERNAL,
+                "flushFrame",
+                "(L" + FRAME_INTERNAL + ";)V",
+                false
+        );
+    }
+
+    public static void buildInvokePrefetchedMacroDirect(MethodVisitor visitor, int planId) {
+        pushInt(visitor, planId);
+        visitor.visitVarInsn(Opcodes.ALOAD, 1);
+        visitor.visitVarInsn(Opcodes.ALOAD, 2);
+        visitor.visitVarInsn(Opcodes.ALOAD, 3);
+        visitor.visitMethodInsn(
+                Opcodes.INVOKESTATIC,
+                PREFETCH_RUNTIME_INTERNAL,
+                "invokePrefetchedMacroDirect",
                 "(ILjava/lang/Object;" + CONTEXT_DESC + COMMAND_FRAME_DESC + ")V",
                 false
         );
@@ -589,6 +626,66 @@ public final class BaselineBytecodeOps {
         );
         visitor.visitInsn(Opcodes.ATHROW);
         visitor.visitLabel(divisorNonZero);
+    }
+
+    /**
+     * Emits a try/catch block around code that may throw {@link CommandSyntaxException},
+     * implementing vanilla's per-command isolation semantics.
+     *
+     * <p>The caller is responsible for placing the try-region code between
+     * {@code tryStart} and {@code tryEnd} labels and jumping to {@code afterCatch}
+     * at the end of the normal path. The generated catch handler calls
+     * {@link BaselineExecutionEngine#handleCommandSyntaxException} and falls through to
+     * {@code afterCatch} so the next inlined command can continue.
+     *
+     * <p>Usage pattern:
+     * <pre>
+     *   Label tryStart = new Label(), tryEnd = new Label(), catchStart = new Label(), afterCatch = new Label();
+     *   buildRegisterCommandSyntaxExceptionHandler(visitor, tryStart, tryEnd, catchStart);
+     *   visitor.visitLabel(tryStart);
+     *   // ... emit the command invocation ...
+     *   visitor.visitLabel(tryEnd);
+     *   visitor.visitJumpInsn(GOTO, afterCatch);  // skip catch on success
+     *   visitor.visitLabel(catchStart);
+     *   buildInvokeHandleCommandException(visitor);
+     *   visitor.visitLabel(afterCatch);
+     * </pre>
+     */
+    public static void buildRegisterCommandSyntaxExceptionHandler(
+            MethodVisitor visitor,
+            Label tryStart,
+            Label tryEnd,
+            Label catchStart
+    ) {
+        visitor.visitTryCatchBlock(
+                tryStart, tryEnd, catchStart,
+                Type.getInternalName(CommandSyntaxException.class)
+        );
+    }
+
+    /**
+     * Emits the body of a catch-handler for {@link CommandSyntaxException}.
+     *
+     * <p>Assumes the stack top is the caught {@link CommandSyntaxException}.
+     * The JIT method signature has {@code source} at local index 1 and
+     * {@code context} at local index 2.
+     * After this call the exception is consumed and execution falls through.
+     */
+    public static void buildInvokeHandleCommandException(MethodVisitor visitor) {
+        // stack: [CommandSyntaxException]
+        visitor.visitVarInsn(Opcodes.ALOAD, 1);  // source (Object)
+        visitor.visitInsn(Opcodes.SWAP);           // source, exception
+        visitor.visitVarInsn(Opcodes.ALOAD, 2);  // context
+        visitor.visitMethodInsn(
+                Opcodes.INVOKESTATIC,
+                Type.getInternalName(BaselineExecutionEngine.class),
+                "handleCommandSyntaxException",
+                "(Ljava/lang/Object;"
+                        + Type.getDescriptor(CommandSyntaxException.class)
+                        + Type.getDescriptor(net.minecraft.command.CommandExecutionContext.class)
+                        + ")V",
+                false
+        );
     }
 
     public static void pushInt(MethodVisitor visitor, int value) {

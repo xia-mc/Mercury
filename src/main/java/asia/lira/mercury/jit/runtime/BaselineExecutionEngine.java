@@ -32,12 +32,18 @@ import net.minecraft.server.function.Procedure;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
+import java.util.BitSet;
 import java.util.concurrent.atomic.AtomicLong;
 
 @SuppressWarnings({"unused", "UnusedReturnValue"})
 public final class BaselineExecutionEngine {
     public static final AtomicLong DIRECT_CALLD_HITS = new AtomicLong();
     public static final AtomicLong DIRECT_CALLD_FALLBACKS = new AtomicLong();
+    public static final AtomicLong INLINE_PREFETCH_HITS = new AtomicLong();
+
+    public static void recordInlinePrefetchHit() {
+        INLINE_PREFETCH_HITS.incrementAndGet();
+    }
 
     private BaselineExecutionEngine() {
     }
@@ -76,6 +82,19 @@ public final class BaselineExecutionEngine {
     public static void ensureLoaded(ExecutionFrame frame, int[] slotIds) {
         for (int slotId : slotIds) {
             readSlot(frame, slotId);
+        }
+    }
+
+    public static void flushFrame(ExecutionFrame frame) {
+        BitSet dirty = frame.dirtySlots();
+        Scoreboard scoreboard = Mercury.SERVER.getScoreboard();
+        for (int slotId = dirty.nextSetBit(0); slotId >= 0; slotId = dirty.nextSetBit(slotId + 1)) {
+            OptimizedSlotRegistry.SlotMetadata metadata = JitPreparationRegistry.getInstance().slotRegistry().getSlot(slotId);
+            if (metadata == null) continue;
+            ScoreboardObjective objective = scoreboard.getNullableObjective(metadata.key().objectiveName());
+            if (objective == null) continue;
+            scoreboard.getOrCreateScore(ScoreHolder.fromName(metadata.key().holderName()), objective).setScore(frame.getSlotValue(slotId));
+            frame.loadSlotValue(slotId, frame.getSlotValue(slotId));
         }
     }
 
@@ -176,6 +195,25 @@ public final class BaselineExecutionEngine {
         CommandSyntaxException exception = new SimpleCommandExceptionType(
                 Text.literal("Unknown function: " + invocationStr)).create();
         typedSource.handleException(exception, false, context.getTracer());
+    }
+
+    /**
+     * Handles a {@link CommandSyntaxException} that was caught inside a JIT-compiled block,
+     * matching vanilla's per-command exception semantics: the error is reported to the source
+     * (or silently traced), and execution continues with the next inlined command.
+     *
+     * <p>This method is called from JIT-generated try/catch handlers that wrap individual
+     * command invocations so that a failing command does not abort the entire compiled block.
+     */
+    @SuppressWarnings("unchecked")
+    public static <T extends AbstractServerCommandSource<T>> void handleCommandSyntaxException(
+            Object rawSource,
+            CommandSyntaxException exception,
+            CommandExecutionContext<?> rawContext
+    ) {
+        T source = (T) rawSource;
+        CommandExecutionContext<T> context = (CommandExecutionContext<T>) rawContext;
+        source.handleException(exception, false, context.getTracer());
     }
 
     public static int readSlot(ExecutionFrame frame, int slotId) {

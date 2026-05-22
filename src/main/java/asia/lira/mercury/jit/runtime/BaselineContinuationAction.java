@@ -1,6 +1,7 @@
 package asia.lira.mercury.jit.runtime;
 
 import asia.lira.mercury.jit.registry.BaselineCompiledFunctionRegistry;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.command.CommandAction;
 import net.minecraft.command.CommandExecutionContext;
 import net.minecraft.command.Frame;
@@ -39,6 +40,8 @@ public final class BaselineContinuationAction<T extends AbstractServerCommandSou
 
         try {
             BaselineCompiledAction.runArtifact(artifact, executionFrame, source, context, frame, nextState, ownsFrame);
+        } catch (CommandSyntaxException commandSyntaxException) {
+            source.handleException(commandSyntaxException, false, context.getTracer());
         } catch (Throwable throwable) {
             throw new RuntimeException("Failed to resume compiled function " + artifact.program().id(), throwable);
         } finally {
