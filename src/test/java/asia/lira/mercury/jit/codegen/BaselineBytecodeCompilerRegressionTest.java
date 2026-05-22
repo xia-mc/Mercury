@@ -1,11 +1,13 @@
 package asia.lira.mercury.jit.codegen;
 
 import asia.lira.mercury.jit.pipeline.LoweredUnit;
+import net.minecraft.server.function.MacroException;
 import net.minecraft.util.Identifier;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,6 +23,59 @@ public final class BaselineBytecodeCompilerRegressionTest {
         assertSmallFunctionStaysSingleInvoke();
         assertReturnFunctionDoesNotEmitInvokeEffect();
         assertUnsafeCompiledCallDoesNotEmitInvokePop();
+        assertPrefetchedMacroCallIsGuardedByMacroException();
+    }
+
+    private static void assertPrefetchedMacroCallIsGuardedByMacroException() {
+        Identifier id = Identifier.of("mercury_test", "macro_call_holder");
+        LoweredUnit unit = new LoweredUnit(
+                id,
+                List.of(new LoweredUnit.LoweredBlock(
+                        id,
+                        List.of(new LoweredUnit.PrefetchedMacroCallInstruction(
+                                42, -1, new int[0], new int[0], "function macro_test:line"
+                        )),
+                        new LoweredUnit.CompleteTerminator()
+                )),
+                0,
+                new int[0],
+                Map.of()
+        );
+        BaselineBytecodeCompiler.CompiledClassData classData = BaselineBytecodeCompiler.compile(
+                unit,
+                Map.of(),
+                Map.of(),
+                Map.of(id, unit.requiredSlots()),
+                Set.of(),
+                Set.of()
+        );
+
+        if (!hasTryCatchForMacroException(classData.classBytes())) {
+            throw new AssertionError(
+                    "PrefetchedMacroCallInstruction must emit a TRYCATCHBLOCK for MacroException "
+                            + "(vanilla parity: INSTANTIATION_FAILURE_EXCEPTION translation)");
+        }
+    }
+
+    private static boolean hasTryCatchForMacroException(byte[] classBytes) {
+        final boolean[] found = {false};
+        String macroExceptionName = Type.getInternalName(MacroException.class);
+        new ClassReader(classBytes).accept(new ClassVisitor(Opcodes.ASM9) {
+            @Override
+            public MethodVisitor visitMethod(int access, String name, String descriptor,
+                                             String signature, String[] exceptions) {
+                return new MethodVisitor(Opcodes.ASM9) {
+                    @Override
+                    public void visitTryCatchBlock(org.objectweb.asm.Label start, org.objectweb.asm.Label end,
+                                                   org.objectweb.asm.Label handler, String type) {
+                        if (macroExceptionName.equals(type)) {
+                            found[0] = true;
+                        }
+                    }
+                };
+            }
+        }, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+        return found[0];
     }
 
     private static void assertLargeScoreboardAddFunctionSplits() {

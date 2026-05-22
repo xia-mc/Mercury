@@ -216,6 +216,31 @@ public final class BaselineExecutionEngine {
         source.handleException(exception, false, context.getTracer());
     }
 
+    /**
+     * Handles a {@link MacroException} raised during prefetched macro expansion by translating it
+     * into the same {@link CommandSyntaxException} vanilla raises (see
+     * {@code FunctionCommand.INSTANTIATION_FAILURE_EXCEPTION}) and routing it through
+     * {@code source.handleException}, matching the vanilla path:
+     * {@code function ns:foo with storage ...} → {@code withMacroReplaced} throws → caught and
+     * re-thrown as {@code INSTANTIATION_FAILURE_EXCEPTION} → handled by FixedCommandAction's
+     * per-command CSE catch.
+     */
+    @SuppressWarnings("unchecked")
+    public static <T extends AbstractServerCommandSource<T>> void handleMacroException(
+            Object rawSource,
+            MacroException exception,
+            CommandExecutionContext<?> rawContext,
+            int planId
+    ) {
+        T source = (T) rawSource;
+        CommandExecutionContext<T> context = (CommandExecutionContext<T>) rawContext;
+        MacroPrefetchPlan plan = MacroPrefetchRegistry.getInstance().plan(planId);
+        Identifier id = plan != null ? plan.macroFunctionId() : Identifier.of("mercury", "unknown");
+        CommandSyntaxException cse = net.minecraft.server.command.FunctionCommand
+                .INSTANTIATION_FAILURE_EXCEPTION.create(id, exception.getMessage());
+        source.handleException(cse, false, context.getTracer());
+    }
+
     public static int readSlot(ExecutionFrame frame, int slotId) {
         if (frame.isLoaded(slotId)) {
             return frame.getSlotValue(slotId);

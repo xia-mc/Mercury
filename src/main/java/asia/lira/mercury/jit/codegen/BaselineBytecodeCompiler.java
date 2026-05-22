@@ -549,7 +549,19 @@ public final class BaselineBytecodeCompiler {
                 if (splitPlan != null && splitPlan.noFunctionCalls()) {
                     BaselineBytecodeOps.buildRecordInlinePrefetchHit(visitor);
                     BaselineBytecodeOps.buildFlushFrame(visitor);
+                    // MacroException guard — match vanilla INSTANTIATION_FAILURE_EXCEPTION translation.
+                    Label dTryStart = new Label();
+                    Label dTryEnd = new Label();
+                    Label dCatchStart = new Label();
+                    Label dAfterCatch = new Label();
+                    BaselineBytecodeOps.buildRegisterMacroExceptionHandler(visitor, dTryStart, dTryEnd, dCatchStart);
+                    visitor.visitLabel(dTryStart);
                     BaselineBytecodeOps.buildInvokePrefetchedMacroDirect(visitor, suspendPrefetchedMacro.planId());
+                    visitor.visitLabel(dTryEnd);
+                    visitor.visitJumpInsn(Opcodes.GOTO, dAfterCatch);
+                    visitor.visitLabel(dCatchStart);
+                    BaselineBytecodeOps.buildInvokeHandleMacroException(visitor, suspendPrefetchedMacro.planId());
+                    visitor.visitLabel(dAfterCatch);
                     reloadPromotedSlotsViaRead(visitor, unit, suspendPrefetchedMacro.spillBeforeSlots());
                     emitTailCallSplitChunk(visitor, ownerInternalName, helperDescriptor, chunkName(blockEntryChunks[suspendPrefetchedMacro.continuationBlockIndex()]), unit, suspendPrefetchedMacro.continuationBlockIndex());
                 } else {
@@ -714,7 +726,19 @@ public final class BaselineBytecodeCompiler {
                         BaselineBytecodeOps.buildRecordInlinePrefetchHit(visitor);
                         spillAllPromoted(visitor, unit);
                         BaselineBytecodeOps.buildFlushFrame(visitor);
+                        // MacroException guard — match vanilla INSTANTIATION_FAILURE_EXCEPTION translation.
+                        Label nTryStart = new Label();
+                        Label nTryEnd = new Label();
+                        Label nCatchStart = new Label();
+                        Label nAfterCatch = new Label();
+                        BaselineBytecodeOps.buildRegisterMacroExceptionHandler(visitor, nTryStart, nTryEnd, nCatchStart);
+                        visitor.visitLabel(nTryStart);
                         BaselineBytecodeOps.buildInvokePrefetchedMacroDirect(visitor, suspendPrefetchedMacro.planId());
+                        visitor.visitLabel(nTryEnd);
+                        visitor.visitJumpInsn(Opcodes.GOTO, nAfterCatch);
+                        visitor.visitLabel(nCatchStart);
+                        BaselineBytecodeOps.buildInvokeHandleMacroException(visitor, suspendPrefetchedMacro.planId());
+                        visitor.visitLabel(nAfterCatch);
                         reloadAllPromotedSlotsViaRead(visitor, unit);
                         BaselineBytecodeOps.pushInt(visitor, suspendPrefetchedMacro.continuationBlockIndex());
                         visitor.visitVarInsn(Opcodes.ISTORE, 4);
@@ -969,7 +993,20 @@ public final class BaselineBytecodeCompiler {
             int[] reloadAfterSlots
     ) {
         spillPromotedSlots(visitor, unit, spillBeforeSlots);
+        // Wrap in MacroException guard — vanilla translates withMacroReplaced failures into
+        // INSTANTIATION_FAILURE_EXCEPTION CSE handled by FixedCommandAction. Match that here.
+        Label tryStart = new Label();
+        Label tryEnd = new Label();
+        Label catchStart = new Label();
+        Label afterCatch = new Label();
+        BaselineBytecodeOps.buildRegisterMacroExceptionHandler(visitor, tryStart, tryEnd, catchStart);
+        visitor.visitLabel(tryStart);
         BaselineBytecodeOps.buildInvokePrefetchedMacro(visitor, planId);
+        visitor.visitLabel(tryEnd);
+        visitor.visitJumpInsn(Opcodes.GOTO, afterCatch);
+        visitor.visitLabel(catchStart);
+        BaselineBytecodeOps.buildInvokeHandleMacroException(visitor, planId);
+        visitor.visitLabel(afterCatch);
         reloadPromotedSlots(visitor, unit, reloadAfterSlots);
     }
 
@@ -1013,7 +1050,19 @@ public final class BaselineBytecodeCompiler {
             visitor.visitLabel(next);
         }
         visitor.visitLabel(fallback);
+        // Wrap in MacroException guard — same vanilla parity rationale as emitPrefetchedMacroCall.
+        Label tier2TryStart = new Label();
+        Label tier2TryEnd = new Label();
+        Label tier2CatchStart = new Label();
+        Label tier2AfterCatch = new Label();
+        BaselineBytecodeOps.buildRegisterMacroExceptionHandler(visitor, tier2TryStart, tier2TryEnd, tier2CatchStart);
+        visitor.visitLabel(tier2TryStart);
         BaselineBytecodeOps.buildInvokeExpandedMacroNoProfile(visitor, planId);
+        visitor.visitLabel(tier2TryEnd);
+        visitor.visitJumpInsn(Opcodes.GOTO, tier2AfterCatch);
+        visitor.visitLabel(tier2CatchStart);
+        BaselineBytecodeOps.buildInvokeHandleMacroException(visitor, planId);
+        visitor.visitLabel(tier2AfterCatch);
         visitor.visitLabel(done);
         reloadPromotedSlots(visitor, unit, reloadAfterSlots);
     }

@@ -688,6 +688,47 @@ public final class BaselineBytecodeOps {
         );
     }
 
+    /**
+     * Registers a try/catch entry for {@link net.minecraft.server.function.MacroException}.
+     * Pairs with {@link #buildInvokeHandleMacroException(MethodVisitor, int)} which translates
+     * the exception into the vanilla {@code INSTANTIATION_FAILURE_EXCEPTION} CSE and routes it
+     * to {@code source.handleException}, matching {@code FunctionCommand.enqueueFunction} behavior.
+     */
+    public static void buildRegisterMacroExceptionHandler(
+            MethodVisitor visitor,
+            Label tryStart,
+            Label tryEnd,
+            Label catchStart
+    ) {
+        visitor.visitTryCatchBlock(
+                tryStart, tryEnd, catchStart,
+                Type.getInternalName(net.minecraft.server.function.MacroException.class)
+        );
+    }
+
+    /**
+     * Emits the body of a catch-handler for {@link net.minecraft.server.function.MacroException}.
+     * Assumes the stack top is the caught exception. The planId is required to look up the
+     * function identifier for the vanilla CSE message.
+     */
+    public static void buildInvokeHandleMacroException(MethodVisitor visitor, int planId) {
+        // stack: [MacroException]
+        visitor.visitVarInsn(Opcodes.ALOAD, 1);  // source
+        visitor.visitInsn(Opcodes.SWAP);           // source, exception
+        visitor.visitVarInsn(Opcodes.ALOAD, 2);  // context
+        pushInt(visitor, planId);                  // planId
+        visitor.visitMethodInsn(
+                Opcodes.INVOKESTATIC,
+                Type.getInternalName(BaselineExecutionEngine.class),
+                "handleMacroException",
+                "(Ljava/lang/Object;"
+                        + Type.getDescriptor(net.minecraft.server.function.MacroException.class)
+                        + Type.getDescriptor(net.minecraft.command.CommandExecutionContext.class)
+                        + "I)V",
+                false
+        );
+    }
+
     public static void pushInt(MethodVisitor visitor, int value) {
         switch (value) {
             case -1 -> visitor.visitInsn(Opcodes.ICONST_M1);

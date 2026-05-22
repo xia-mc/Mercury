@@ -35,15 +35,25 @@ public final class BaselineCompiledAction<T extends AbstractServerCommandSource<
         try {
             runArtifact(artifact, current, source, context, frame, 0, ownsFrame);
         } catch (CommandSyntaxException commandSyntaxException) {
+            safeFlush(current);
             if (ownsFrame && runtime.currentFrame() == current) {
                 runtime.popFrame(current);
             }
             source.handleException(commandSyntaxException, false, context.getTracer());
         } catch (Throwable throwable) {
+            safeFlush(current);
             if (ownsFrame && runtime.currentFrame() == current) {
                 runtime.popFrame(current);
             }
             throw new RuntimeException("Failed to execute compiled function " + artifact.program().id(), throwable);
+        }
+    }
+
+    static void safeFlush(ExecutionFrame frame) {
+        try {
+            BaselineExecutionEngine.flushFrame(frame);
+        } catch (Throwable ignored) {
+            // best-effort: original exception must propagate
         }
     }
 
@@ -123,7 +133,7 @@ public final class BaselineCompiledAction<T extends AbstractServerCommandSource<
         try {
             MacroPrefetchRuntime.invokePrefetchedMacroDirect(planId, source, context, frame);
         } catch (MacroException e) {
-            throw new RuntimeException("Failed to instantiate prefetched macro " + planId, e);
+            BaselineExecutionEngine.handleMacroException(source, e, context, planId);
         }
         if (nextState >= 0) {
             context.enqueueCommand(new CommandQueueEntry<>(frame, new BaselineContinuationAction<>(artifact, executionFrame, source, nextState, ownsFrame)));
