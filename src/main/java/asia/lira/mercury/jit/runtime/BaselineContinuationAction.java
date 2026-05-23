@@ -41,15 +41,13 @@ public final class BaselineContinuationAction<T extends AbstractServerCommandSou
         try {
             BaselineCompiledAction.runArtifact(artifact, executionFrame, source, context, frame, nextState, ownsFrame);
         } catch (CommandSyntaxException commandSyntaxException) {
-            BaselineCompiledAction.safeFlush(executionFrame);
+            FrameLifecycle.safeFlush(executionFrame);
             source.handleException(commandSyntaxException, false, context.getTracer());
         } catch (Throwable throwable) {
-            BaselineCompiledAction.safeFlush(executionFrame);
+            FrameLifecycle.safeFlush(executionFrame);
             throw new RuntimeException("Failed to resume compiled function " + artifact.program().id(), throwable);
         } finally {
-            if (pushed && runtime.currentFrame() == executionFrame) {
-                runtime.popFrame(executionFrame);
-            }
+            FrameLifecycle.releaseIfOwned(executionFrame, pushed);
         }
     }
 }
