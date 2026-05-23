@@ -192,7 +192,7 @@ public final class BaselineBytecodeCompiler {
         }
 
         visitor.visitLabel(defaultLabel);
-        spillAllPromoted(visitor, unit);
+        SlotPromotionHelper.spillAllPromoted(visitor, unit);
         BaselineBytecodeOps.buildCompleted(visitor);
         visitor.visitMaxs(0, 0);
         visitor.visitEnd();
@@ -241,7 +241,7 @@ public final class BaselineBytecodeCompiler {
         }
 
         visitor.visitLabel(defaultLabel);
-        spillAllPromoted(visitor, unit);
+        SlotPromotionHelper.spillAllPromoted(visitor, unit);
         visitor.visitInsn(Opcodes.RETURN);
         visitor.visitMaxs(0, 0);
         visitor.visitEnd();
@@ -346,7 +346,7 @@ public final class BaselineBytecodeCompiler {
             emitTailCallSplitChunk(visitor, ownerInternalName, helperDescriptor, chunkName(blockEntryChunks[i]), unit, i);
         }
         visitor.visitLabel(defaultLabel);
-        spillAllPromoted(visitor, unit);
+        SlotPromotionHelper.spillAllPromoted(visitor, unit);
         BaselineBytecodeOps.buildCompleted(visitor);
         visitor.visitMaxs(0, 0);
         visitor.visitEnd();
@@ -526,28 +526,28 @@ public final class BaselineBytecodeCompiler {
     ) {
         switch (terminator) {
             case LoweredUnit.CompleteTerminator ignored -> {
-                spillAllPromoted(visitor, unit);
+                SlotPromotionHelper.spillAllPromoted(visitor, unit);
                 BaselineBytecodeOps.buildCompleted(visitor);
             }
             case LoweredUnit.ReturnValueTerminator returnValue -> {
-                spillAllPromoted(visitor, unit);
+                SlotPromotionHelper.spillAllPromoted(visitor, unit);
                 BaselineBytecodeOps.buildReturnValue(visitor, returnValue.returnValue());
             }
             case LoweredUnit.JumpLocalTerminator jumpLocal ->
                     emitTailCallSplitChunk(visitor, ownerInternalName, helperDescriptor, chunkName(blockEntryChunks[jumpLocal.targetBlockIndex()]), unit, jumpLocal.targetBlockIndex());
             case LoweredUnit.JumpExternalTerminator jumpExternal -> {
-                spillAllPromoted(visitor, unit);
+                SlotPromotionHelper.spillAllPromoted(visitor, unit);
                 emitDirectInvoke(visitor, unit, jumpExternal.targetFunction(), jumpExternal.bindingId(), jumpExternal.spillBeforeSlots(), new int[0], internalNames, callSiteCounts, requiredSlotsById, true, invokeEffectIds);
             }
             case LoweredUnit.SuspendActionTerminator suspendAction -> {
-                spillPromotedSlots(visitor, unit, suspendAction.spillBeforeSlots());
+                SlotPromotionHelper.spillPromotedSlots(visitor, unit, suspendAction.spillBeforeSlots());
                 BaselineBytecodeOps.buildSuspend(visitor, suspendAction.bindingId(), suspendAction.continuationBlockIndex());
             }
             case LoweredUnit.SuspendPrefetchedMacroTerminator suspendPrefetchedMacro -> {
                 asia.lira.mercury.impl.cache.MacroPrefetchPlan splitPlan =
                         asia.lira.mercury.impl.cache.MacroPrefetchRegistry.getInstance()
                                 .plan(suspendPrefetchedMacro.planId());
-                spillPromotedSlots(visitor, unit, suspendPrefetchedMacro.spillBeforeSlots());
+                SlotPromotionHelper.spillPromotedSlots(visitor, unit, suspendPrefetchedMacro.spillBeforeSlots());
                 if (splitPlan != null && splitPlan.noFunctionCalls()) {
                     MacroOps.buildRecordInlinePrefetchHit(visitor);
                     MacroOps.buildFlushFrame(visitor);
@@ -564,7 +564,7 @@ public final class BaselineBytecodeCompiler {
                     visitor.visitLabel(dCatchStart);
                     ExceptionOps.buildInvokeHandleMacroException(visitor, suspendPrefetchedMacro.planId());
                     visitor.visitLabel(dAfterCatch);
-                    reloadPromotedSlotsViaRead(visitor, unit, suspendPrefetchedMacro.spillBeforeSlots());
+                    SlotPromotionHelper.reloadPromotedSlotsViaRead(visitor, unit, suspendPrefetchedMacro.spillBeforeSlots());
                     emitTailCallSplitChunk(visitor, ownerInternalName, helperDescriptor, chunkName(blockEntryChunks[suspendPrefetchedMacro.continuationBlockIndex()]), unit, suspendPrefetchedMacro.continuationBlockIndex());
                 } else {
                     BaselineBytecodeOps.buildSuspendPrefetchedMacro(visitor, suspendPrefetchedMacro.planId(), suspendPrefetchedMacro.continuationBlockIndex());
@@ -585,7 +585,7 @@ public final class BaselineBytecodeCompiler {
             int[] blockEntryChunks,
             Set<net.minecraft.util.Identifier> invokeEffectIds
     ) {
-        spillPromotedSlots(visitor, unit, terminator.spillBeforeSlots());
+        SlotPromotionHelper.spillPromotedSlots(visitor, unit, terminator.spillBeforeSlots());
         MacroOps.buildPrefetchMacroLine(visitor, terminator.planId());
         MacroOps.buildLoadTier2MacroArguments(visitor, terminator.planId(), 7);
         for (LoweredUnit.Tier2DispatchTarget target : terminator.targets()) {
@@ -667,11 +667,11 @@ public final class BaselineBytecodeCompiler {
         if (effectMode) {
             switch (block.terminator()) {
                 case LoweredUnit.CompleteTerminator ignored -> {
-                    spillAllPromoted(visitor, unit);
+                    SlotPromotionHelper.spillAllPromoted(visitor, unit);
                     visitor.visitInsn(Opcodes.RETURN);
                 }
                 case LoweredUnit.ReturnValueTerminator ignored -> {
-                    spillAllPromoted(visitor, unit);
+                    SlotPromotionHelper.spillAllPromoted(visitor, unit);
                     visitor.visitInsn(Opcodes.RETURN);
                 }
                 case LoweredUnit.JumpLocalTerminator jumpLocal -> {
@@ -680,7 +680,7 @@ public final class BaselineBytecodeCompiler {
                     visitor.visitJumpInsn(Opcodes.GOTO, loopStart);
                 }
                 case LoweredUnit.JumpExternalTerminator jumpExternal -> {
-                    spillAllPromoted(visitor, unit);
+                    SlotPromotionHelper.spillAllPromoted(visitor, unit);
                     emitDirectInvoke(visitor, unit, jumpExternal.targetFunction(), jumpExternal.bindingId(), jumpExternal.spillBeforeSlots(), new int[0], internalNames, callSiteCounts, requiredSlotsById, false, invokeEffectIds);
                     visitor.visitInsn(Opcodes.RETURN);
                 }
@@ -689,11 +689,11 @@ public final class BaselineBytecodeCompiler {
         } else {
             switch (block.terminator()) {
                 case LoweredUnit.CompleteTerminator ignored -> {
-                    spillAllPromoted(visitor, unit);
+                    SlotPromotionHelper.spillAllPromoted(visitor, unit);
                     BaselineBytecodeOps.buildCompleted(visitor);
                 }
                 case LoweredUnit.ReturnValueTerminator returnValue -> {
-                    spillAllPromoted(visitor, unit);
+                    SlotPromotionHelper.spillAllPromoted(visitor, unit);
                     BaselineBytecodeOps.buildReturnValue(visitor, returnValue.returnValue());
                 }
                 case LoweredUnit.JumpLocalTerminator jumpLocal -> {
@@ -702,11 +702,11 @@ public final class BaselineBytecodeCompiler {
                     visitor.visitJumpInsn(Opcodes.GOTO, loopStart);
                 }
                 case LoweredUnit.JumpExternalTerminator jumpExternal -> {
-                    spillAllPromoted(visitor, unit);
+                    SlotPromotionHelper.spillAllPromoted(visitor, unit);
                     emitDirectInvoke(visitor, unit, jumpExternal.targetFunction(), jumpExternal.bindingId(), jumpExternal.spillBeforeSlots(), new int[0], internalNames, callSiteCounts, requiredSlotsById, true, invokeEffectIds);
                 }
                 case LoweredUnit.SuspendActionTerminator suspendAction -> {
-                    spillPromotedSlots(visitor, unit, suspendAction.spillBeforeSlots());
+                    SlotPromotionHelper.spillPromotedSlots(visitor, unit, suspendAction.spillBeforeSlots());
                     BaselineBytecodeOps.buildSuspend(visitor, suspendAction.bindingId(), suspendAction.continuationBlockIndex());
                 }
                 case LoweredUnit.SuspendPrefetchedMacroTerminator suspendPrefetchedMacro -> {
@@ -714,11 +714,11 @@ public final class BaselineBytecodeCompiler {
                             asia.lira.mercury.impl.cache.MacroPrefetchRegistry.getInstance()
                                     .plan(suspendPrefetchedMacro.planId());
                     if (plan != null && plan.functionDispatchArgIndex() >= 0) {
-                        spillAllPromoted(visitor, unit);
+                        SlotPromotionHelper.spillAllPromoted(visitor, unit);
                         Label suspendLabel = new Label();
                         BaselineBytecodeOps.buildOpDirectCalld(visitor, suspendPrefetchedMacro.planId());
                         visitor.visitJumpInsn(Opcodes.IFEQ, suspendLabel);
-                        reloadAllPromotedSlotsViaRead(visitor, unit);
+                        SlotPromotionHelper.reloadAllPromotedSlotsViaRead(visitor, unit);
                         BaselineBytecodeOps.pushInt(visitor, suspendPrefetchedMacro.continuationBlockIndex());
                         visitor.visitVarInsn(Opcodes.ISTORE, 4);
                         visitor.visitJumpInsn(Opcodes.GOTO, loopStart);
@@ -726,7 +726,7 @@ public final class BaselineBytecodeCompiler {
                         BaselineBytecodeOps.buildSuspendPrefetchedMacro(visitor, suspendPrefetchedMacro.planId(), suspendPrefetchedMacro.continuationBlockIndex());
                     } else if (plan != null && plan.noFunctionCalls()) {
                         MacroOps.buildRecordInlinePrefetchHit(visitor);
-                        spillAllPromoted(visitor, unit);
+                        SlotPromotionHelper.spillAllPromoted(visitor, unit);
                         MacroOps.buildFlushFrame(visitor);
                         // MacroException guard — match vanilla INSTANTIATION_FAILURE_EXCEPTION translation.
                         Label nTryStart = new Label();
@@ -741,12 +741,12 @@ public final class BaselineBytecodeCompiler {
                         visitor.visitLabel(nCatchStart);
                         ExceptionOps.buildInvokeHandleMacroException(visitor, suspendPrefetchedMacro.planId());
                         visitor.visitLabel(nAfterCatch);
-                        reloadAllPromotedSlotsViaRead(visitor, unit);
+                        SlotPromotionHelper.reloadAllPromotedSlotsViaRead(visitor, unit);
                         BaselineBytecodeOps.pushInt(visitor, suspendPrefetchedMacro.continuationBlockIndex());
                         visitor.visitVarInsn(Opcodes.ISTORE, 4);
                         visitor.visitJumpInsn(Opcodes.GOTO, loopStart);
                     } else {
-                        spillPromotedSlots(visitor, unit, suspendPrefetchedMacro.spillBeforeSlots());
+                        SlotPromotionHelper.spillPromotedSlots(visitor, unit, suspendPrefetchedMacro.spillBeforeSlots());
                         BaselineBytecodeOps.buildSuspendPrefetchedMacro(visitor, suspendPrefetchedMacro.planId(), suspendPrefetchedMacro.continuationBlockIndex());
                     }
                 }
@@ -917,7 +917,7 @@ public final class BaselineBytecodeCompiler {
             boolean returnOutcome,
             Set<net.minecraft.util.Identifier> invokeEffectIds
     ) {
-        spillPromotedSlots(visitor, unit, spillBeforeSlots);
+        SlotPromotionHelper.spillPromotedSlots(visitor, unit, spillBeforeSlots);
 
         String targetInternalName = internalNames.get(targetFunction);
         if (targetInternalName == null) {
@@ -926,10 +926,10 @@ public final class BaselineBytecodeCompiler {
             }
             BaselineBytecodeOps.buildInvokeActionFallback(visitor, bindingId);
             if (returnOutcome) {
-                spillAllPromoted(visitor, unit);
+                SlotPromotionHelper.spillAllPromoted(visitor, unit);
                 BaselineBytecodeOps.buildCompleted(visitor);
             }
-            reloadPromotedSlots(visitor, unit, reloadAfterSlots);
+            SlotPromotionHelper.reloadPromotedSlots(visitor, unit, reloadAfterSlots);
             return;
         }
 
@@ -939,7 +939,7 @@ public final class BaselineBytecodeCompiler {
                         + " is not safe for synchronous invoke and has no fallback binding");
             }
             BaselineBytecodeOps.buildInvokeActionFallback(visitor, bindingId);
-            reloadPromotedSlots(visitor, unit, reloadAfterSlots);
+            SlotPromotionHelper.reloadPromotedSlots(visitor, unit, reloadAfterSlots);
             return;
         }
 
@@ -954,12 +954,12 @@ public final class BaselineBytecodeCompiler {
         }
         if (!returnOutcome && invokeEffectIds.contains(targetFunction)) {
             BaselineBytecodeOps.buildStaticInvokeEffect(visitor, targetInternalName);
-            reloadPromotedSlots(visitor, unit, reloadAfterSlots);
+            SlotPromotionHelper.reloadPromotedSlots(visitor, unit, reloadAfterSlots);
             return;
         }
         BaselineBytecodeOps.buildStaticInvoke(visitor, targetInternalName, returnOutcome);
         if (!returnOutcome) {
-            reloadPromotedSlots(visitor, unit, reloadAfterSlots);
+            SlotPromotionHelper.reloadPromotedSlots(visitor, unit, reloadAfterSlots);
         }
     }
 
@@ -970,9 +970,9 @@ public final class BaselineBytecodeCompiler {
             int[] spillBeforeSlots,
             int[] reloadAfterSlots
     ) {
-        spillPromotedSlots(visitor, unit, spillBeforeSlots);
+        SlotPromotionHelper.spillPromotedSlots(visitor, unit, spillBeforeSlots);
         BaselineBytecodeOps.buildInvokeBoundCommand(visitor, bindingId);
-        reloadPromotedSlots(visitor, unit, reloadAfterSlots);
+        SlotPromotionHelper.reloadPromotedSlots(visitor, unit, reloadAfterSlots);
     }
 
     private static void emitActionBridge(
@@ -982,9 +982,9 @@ public final class BaselineBytecodeCompiler {
             int[] spillBeforeSlots,
             int[] reloadAfterSlots
     ) {
-        spillPromotedSlots(visitor, unit, spillBeforeSlots);
+        SlotPromotionHelper.spillPromotedSlots(visitor, unit, spillBeforeSlots);
         BaselineBytecodeOps.buildInvokeActionFallback(visitor, bindingId);
-        reloadPromotedSlots(visitor, unit, reloadAfterSlots);
+        SlotPromotionHelper.reloadPromotedSlots(visitor, unit, reloadAfterSlots);
     }
 
     private static void emitPrefetchedMacroCall(
@@ -994,7 +994,7 @@ public final class BaselineBytecodeCompiler {
             int[] spillBeforeSlots,
             int[] reloadAfterSlots
     ) {
-        spillPromotedSlots(visitor, unit, spillBeforeSlots);
+        SlotPromotionHelper.spillPromotedSlots(visitor, unit, spillBeforeSlots);
         // Wrap in MacroException guard — vanilla translates withMacroReplaced failures into
         // INSTANTIATION_FAILURE_EXCEPTION CSE handled by FixedCommandAction. Match that here.
         Label tryStart = new Label();
@@ -1009,7 +1009,7 @@ public final class BaselineBytecodeCompiler {
         visitor.visitLabel(catchStart);
         ExceptionOps.buildInvokeHandleMacroException(visitor, planId);
         visitor.visitLabel(afterCatch);
-        reloadPromotedSlots(visitor, unit, reloadAfterSlots);
+        SlotPromotionHelper.reloadPromotedSlots(visitor, unit, reloadAfterSlots);
     }
 
     private static void emitTier2MacroDispatch(
@@ -1023,7 +1023,7 @@ public final class BaselineBytecodeCompiler {
             String ownerInternalName,
             Set<net.minecraft.util.Identifier> invokeEffectIds
     ) {
-        spillPromotedSlots(visitor, unit, spillBeforeSlots);
+        SlotPromotionHelper.spillPromotedSlots(visitor, unit, spillBeforeSlots);
         MacroOps.buildPrefetchMacroLine(visitor, planId);
         MacroOps.buildLoadTier2MacroArguments(visitor, planId, 7);
         Label fallback = new Label();
@@ -1066,7 +1066,7 @@ public final class BaselineBytecodeCompiler {
         ExceptionOps.buildInvokeHandleMacroException(visitor, planId);
         visitor.visitLabel(tier2AfterCatch);
         visitor.visitLabel(done);
-        reloadPromotedSlots(visitor, unit, reloadAfterSlots);
+        SlotPromotionHelper.reloadPromotedSlots(visitor, unit, reloadAfterSlots);
     }
 
     private static void emitTier2MacroDispatchTerminator(
@@ -1078,7 +1078,7 @@ public final class BaselineBytecodeCompiler {
             String ownerInternalName,
             Set<net.minecraft.util.Identifier> invokeEffectIds
     ) {
-        spillPromotedSlots(visitor, unit, terminator.spillBeforeSlots());
+        SlotPromotionHelper.spillPromotedSlots(visitor, unit, terminator.spillBeforeSlots());
         MacroOps.buildPrefetchMacroLine(visitor, terminator.planId());
         MacroOps.buildLoadTier2MacroArguments(visitor, terminator.planId(), 7);
         for (LoweredUnit.Tier2DispatchTarget target : terminator.targets()) {
@@ -1118,13 +1118,13 @@ public final class BaselineBytecodeCompiler {
             Map<Integer, SpecializedFieldSpec> specializedFields,
             String ownerInternalName
     ) {
-        spillPromotedSlots(visitor, unit, spillBeforeSlots);
+        SlotPromotionHelper.spillPromotedSlots(visitor, unit, spillBeforeSlots);
         SpecializedFieldSpec fieldSpec = specializedFields.get(specializedId);
         if (fieldSpec == null) {
             throw new IllegalStateException("Missing specialized field for plan " + specializedId + " in " + unit.entryId());
         }
         fieldSpec.plan().emitBytecode(new SpecializedEmitContext(visitor, ownerInternalName, fieldSpec.fieldName(), fieldSpec.planDescriptor()));
-        reloadPromotedSlots(visitor, unit, reloadAfterSlots);
+        SlotPromotionHelper.reloadPromotedSlots(visitor, unit, reloadAfterSlots);
     }
 
     private static void emitSpecializedGuarded(
@@ -1150,7 +1150,7 @@ public final class BaselineBytecodeCompiler {
 
         visitor.visitLabel(catchStart);
         ExceptionOps.buildInvokeHandleCommandException(visitor);
-        reloadPromotedSlotsViaRead(visitor, unit, reloadAfterSlots);
+        SlotPromotionHelper.reloadPromotedSlotsViaRead(visitor, unit, reloadAfterSlots);
 
         visitor.visitLabel(afterCatch);
     }
@@ -1226,47 +1226,7 @@ public final class BaselineBytecodeCompiler {
         throw new IllegalStateException("Unsupported specialized plan type " + plan.getClass().getName());
     }
 
-    private static void spillAllPromoted(MethodVisitor visitor, LoweredUnit unit) {
-        for (Map.Entry<Integer, Integer> entry : unit.promotedSlotLocals().entrySet()) {
-            BaselineBytecodeOps.buildSpillPromotedSlot(visitor, entry.getKey(), entry.getValue());
-        }
-    }
-
-    private static void spillPromotedSlots(MethodVisitor visitor, LoweredUnit unit, int[] slotIds) {
-        for (int slotId : slotIds) {
-            if (unit.isPromoted(slotId)) {
-                BaselineBytecodeOps.buildSpillPromotedSlot(visitor, slotId, unit.localIndexFor(slotId));
-            }
-        }
-    }
-
-    private static void reloadPromotedSlots(MethodVisitor visitor, LoweredUnit unit, int[] slotIds) {
-        for (int slotId : slotIds) {
-            if (unit.isPromoted(slotId)) {
-                BaselineBytecodeOps.buildReloadPromotedSlot(visitor, slotId, unit.localIndexFor(slotId));
-            }
-        }
-    }
-
-    private static void reloadAllPromotedSlots(MethodVisitor visitor, LoweredUnit unit) {
-        for (Map.Entry<Integer, Integer> entry : unit.promotedSlotLocals().entrySet()) {
-            BaselineBytecodeOps.buildReloadPromotedSlot(visitor, entry.getKey(), entry.getValue());
-        }
-    }
-
-    private static void reloadAllPromotedSlotsViaRead(MethodVisitor visitor, LoweredUnit unit) {
-        for (Map.Entry<Integer, Integer> entry : unit.promotedSlotLocals().entrySet()) {
-            BaselineBytecodeOps.buildReadIntoPromotedSlot(visitor, entry.getKey(), entry.getValue());
-        }
-    }
-
-    private static void reloadPromotedSlotsViaRead(MethodVisitor visitor, LoweredUnit unit, int[] slotIds) {
-        for (int slotId : slotIds) {
-            if (unit.isPromoted(slotId)) {
-                BaselineBytecodeOps.buildReadIntoPromotedSlot(visitor, slotId, unit.localIndexFor(slotId));
-            }
-        }
-    }
+    // Slot promotion spill/reload helpers moved to SlotPromotionHelper.
 
     private static boolean callerCoversCalleeSlots(LoweredUnit caller, int[] calleeRequired) {
         java.util.Set<Integer> callerSlots = new java.util.HashSet<>();
