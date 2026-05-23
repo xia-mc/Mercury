@@ -122,8 +122,11 @@ public final class StorageAccessRuntime {
     }
 
     private static NbtCompound getMutable(Identifier storageId) {
-        DataCommandStorage storage = Mercury.SERVER.getDataCommandStorage();
-        return storage.get(storageId).copy();
+        // Vanilla DataCommand mutates the storage NbtCompound in place: get the live reference,
+        // mutate, then set marks dirty for persistence. Cloning on every write is O(root size)
+        // and turns std:init_vm-style bulk writes into O(N^2) on heaps that grow to thousands of
+        // entries — observed as multi-minute Server-thread stalls under JIT.
+        return Mercury.SERVER.getDataCommandStorage().get(storageId);
     }
 
     private static void save(Identifier storageId, NbtCompound root) {

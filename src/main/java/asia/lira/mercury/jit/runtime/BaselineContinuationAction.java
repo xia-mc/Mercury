@@ -45,6 +45,11 @@ public final class BaselineContinuationAction<T extends AbstractServerCommandSou
             source.handleException(commandSyntaxException, false, context.getTracer());
         } catch (Throwable throwable) {
             FrameLifecycle.safeFlush(executionFrame);
+            CommandSyntaxException wrapped = BaselineCompiledAction.findCommandSyntaxCause(throwable);
+            if (wrapped != null) {
+                source.handleException(wrapped, false, context.getTracer());
+                return;
+            }
             throw new RuntimeException("Failed to resume compiled function " + artifact.program().id(), throwable);
         } finally {
             FrameLifecycle.releaseIfOwnedAndOnTop(executionFrame, pushed);

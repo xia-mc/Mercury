@@ -35,6 +35,11 @@ public final class BaselineCompiledAction<T extends AbstractServerCommandSource<
         } catch (Throwable throwable) {
             FrameLifecycle.safeFlush(current);
             FrameLifecycle.releaseIfOwnedAndOnTop(current, ownsFrame);
+            CommandSyntaxException wrapped = findCommandSyntaxCause(throwable);
+            if (wrapped != null) {
+                source.handleException(wrapped, false, context.getTracer());
+                return;
+            }
             throw new RuntimeException("Failed to execute compiled function " + artifact.program().id(), throwable);
         }
     }
@@ -71,6 +76,23 @@ public final class BaselineCompiledAction<T extends AbstractServerCommandSource<
             }
             case FALLBACK -> throw new IllegalStateException("Unexpected fallback outcome from compiled artifact " + artifact.program().id());
         }
+    }
+
+    /**
+     * Walks the cause chain of {@code throwable} looking for a
+     * {@link CommandSyntaxException}. A non-CSE wrapper (e.g. a Throwable from a runtime helper
+     * or a downstream Mojang/mod frame) that carries a CSE as its cause would otherwise bypass
+     * the per-command exception isolation that vanilla mcfunction relies on, and abort the whole
+     * compiled function instead of being routed through {@code source.handleException}. This
+     * matches the loose semantics Brigadier uses around command failures.
+     */
+    static CommandSyntaxException findCommandSyntaxCause(Throwable throwable) {
+        for (Throwable cause = throwable; cause != null && cause != cause.getCause(); cause = cause.getCause()) {
+            if (cause instanceof CommandSyntaxException cse) {
+                return cse;
+            }
+        }
+        return null;
     }
 
     // Back-compat aliases — older callers (and bytecode metadata) reference these symbols.
