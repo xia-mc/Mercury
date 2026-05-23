@@ -57,7 +57,15 @@ tasks.register("baselineBytecodeRegressionTest", JavaExec) {
     mainClass = "asia.lira.mercury.jit.codegen.BaselineBytecodeCompilerRegressionTest"
 }
 
-check.dependsOn baselineBytecodeRegressionTest
+tasks.register("jitContextTest", JavaExec) {
+    group = "verification"
+    description = "Smoke test that JitContext composes the SPI lookups without depending on production singletons."
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = "asia.lira.mercury.jit.JitContextTest"
+}
+
+check.dependsOn baselineBytecodeRegressionTest, jitContextTest
 
 processResources {
     inputs.property "version", project.version
