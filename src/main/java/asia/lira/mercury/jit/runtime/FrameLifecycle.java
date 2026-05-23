@@ -33,9 +33,10 @@ public final class FrameLifecycle {
 
     /**
      * Pops {@code frame} from the runtime stack if {@code ownsFrame} is true and
-     * the runtime still has it on top. Safe to call from exceptional paths.
+     * the runtime still has it on top. Safe to call from exceptional paths where
+     * a nested call may have already popped a child frame.
      */
-    public static void releaseIfOwned(ExecutionFrame frame, boolean ownsFrame) {
+    public static void releaseIfOwnedAndOnTop(ExecutionFrame frame, boolean ownsFrame) {
         if (!ownsFrame) {
             return;
         }
@@ -43,6 +44,20 @@ public final class FrameLifecycle {
         if (runtime.currentFrame() == frame) {
             runtime.popFrame(frame);
         }
+    }
+
+    /**
+     * Pops {@code frame} from the runtime stack if {@code ownsFrame} is true,
+     * matching the original {@code BaselineCompiledAction.scheduleSuspension} behavior
+     * where the frame is removed from the stack even if a nested operation pushed
+     * additional frames after it. Used by suspension scheduling, which knows the
+     * outer frame is no longer needed.
+     */
+    public static void releaseIfOwned(ExecutionFrame frame, boolean ownsFrame) {
+        if (!ownsFrame) {
+            return;
+        }
+        SynchronizationRuntime.getInstance().popFrame(frame);
     }
 
     /**

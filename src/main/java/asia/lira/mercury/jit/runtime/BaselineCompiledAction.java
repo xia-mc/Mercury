@@ -30,11 +30,11 @@ public final class BaselineCompiledAction<T extends AbstractServerCommandSource<
             runArtifact(artifact, current, source, context, frame, 0, ownsFrame);
         } catch (CommandSyntaxException commandSyntaxException) {
             FrameLifecycle.safeFlush(current);
-            FrameLifecycle.releaseIfOwned(current, ownsFrame);
+            FrameLifecycle.releaseIfOwnedAndOnTop(current, ownsFrame);
             source.handleException(commandSyntaxException, false, context.getTracer());
         } catch (Throwable throwable) {
             FrameLifecycle.safeFlush(current);
-            FrameLifecycle.releaseIfOwned(current, ownsFrame);
+            FrameLifecycle.releaseIfOwnedAndOnTop(current, ownsFrame);
             throw new RuntimeException("Failed to execute compiled function " + artifact.program().id(), throwable);
         }
     }
@@ -53,13 +53,13 @@ public final class BaselineCompiledAction<T extends AbstractServerCommandSource<
         switch (outcome.mode()) {
             case COMPLETE -> {
                 BaselineExecutionEngine.flushFrame(executionFrame);
-                FrameLifecycle.releaseIfOwned(executionFrame, ownsFrame);
+                FrameLifecycle.releaseIfOwnedAndOnTop(executionFrame, ownsFrame);
             }
             case RETURN -> {
                 BaselineExecutionEngine.flushFrame(executionFrame);
                 frame.succeed(outcome.returnValue());
                 frame.doReturn();
-                FrameLifecycle.releaseIfOwned(executionFrame, ownsFrame);
+                FrameLifecycle.releaseIfOwnedAndOnTop(executionFrame, ownsFrame);
             }
             case SUSPEND -> {
                 BaselineExecutionEngine.flushFrame(executionFrame);

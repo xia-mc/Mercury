@@ -47,7 +47,7 @@ public final class BaselineContinuationAction<T extends AbstractServerCommandSou
             FrameLifecycle.safeFlush(executionFrame);
             throw new RuntimeException("Failed to resume compiled function " + artifact.program().id(), throwable);
         } finally {
-            FrameLifecycle.releaseIfOwned(executionFrame, pushed);
+            FrameLifecycle.releaseIfOwnedAndOnTop(executionFrame, pushed);
         }
     }
 }
