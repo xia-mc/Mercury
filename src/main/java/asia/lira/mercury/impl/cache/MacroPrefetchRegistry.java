@@ -2,6 +2,7 @@ package asia.lira.mercury.impl.cache;
 
 import asia.lira.mercury.Mercury;
 import asia.lira.mercury.ir.FunctionIrRegistry;
+import asia.lira.mercury.jit.spi.PrefetchPlanLookup;
 import net.minecraft.command.DataCommandStorage;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
@@ -16,7 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class MacroPrefetchRegistry {
+public final class MacroPrefetchRegistry implements PrefetchPlanLookup {
     private static final MacroPrefetchRegistry INSTANCE = new MacroPrefetchRegistry();
     private static final int ACTIVATION_CALL_THRESHOLD = 2;
     private static final int ACTIVATION_STORE_FOLLOW_THRESHOLD = 1;

@@ -1,6 +1,7 @@
 package asia.lira.mercury.jit.registry;
 
 import asia.lira.mercury.jit.pipeline.SlotKey;
+import asia.lira.mercury.jit.spi.SlotMetadataLookup;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -8,7 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class OptimizedSlotRegistry {
+public final class OptimizedSlotRegistry implements SlotMetadataLookup {
     private final Map<SlotKey, Integer> slotIds = new LinkedHashMap<>();
     private final List<SlotMetadata> slots = new ArrayList<>();
     private final Map<String, List<Integer>> objectiveToSlots = new LinkedHashMap<>();

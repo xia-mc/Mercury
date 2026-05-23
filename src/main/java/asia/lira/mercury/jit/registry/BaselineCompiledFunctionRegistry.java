@@ -24,6 +24,7 @@ import asia.lira.mercury.jit.pass.MacroPrefetchPass;
 import asia.lira.mercury.jit.pass.SlotPromotionPass;
 import asia.lira.mercury.jit.pass.UnresolvedCallIsolationPass;
 import asia.lira.mercury.jit.specialized.core.SpecializedCommandRegistry;
+import asia.lira.mercury.jit.spi.CompiledArtifactLookup;
 import net.minecraft.command.CommandExecutionContext;
 import net.minecraft.command.SourcedCommandAction;
 import net.minecraft.server.function.CommandFunction;
@@ -40,7 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public final class BaselineCompiledFunctionRegistry {
+public final class BaselineCompiledFunctionRegistry implements CompiledArtifactLookup {
     private static final BaselineCompiledFunctionRegistry INSTANCE = new BaselineCompiledFunctionRegistry();
 
     private final Map<Identifier, CompiledArtifact> tier1Artifacts = new LinkedHashMap<>();
